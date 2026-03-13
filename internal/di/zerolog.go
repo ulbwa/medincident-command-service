@@ -11,7 +11,7 @@ import (
 	"github.com/samber/do/v2"
 	"gopkg.in/natefinch/lumberjack.v2"
 
-	"github.com/ulbwa/go-backend-template/internal/config"
+	"github.com/ulbwa/medincident-command-service/internal/config"
 )
 
 func provideZerolog(injector do.Injector) {

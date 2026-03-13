@@ -1,4 +1,4 @@
-module github.com/ulbwa/go-backend-template
+module github.com/ulbwa/medincident-command-service
 
 go 1.26.0
 
