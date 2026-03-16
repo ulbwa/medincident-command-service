@@ -2,9 +2,6 @@ package model
 
 import (
 	"fmt"
-	"unicode/utf8"
-
-	errs "github.com/ulbwa/medincident-command-service/internal/errors"
 )
 
 type UserName struct {
@@ -29,33 +26,21 @@ func (u *UserName) ShortName() string {
 	return fmt.Sprintf("%s %c.", u.FamilyName, givenInitial)
 }
 
-func validateUserName(name UserName) error {
-	givenNameLen := utf8.RuneCountInString(name.GivenName)
-	if givenNameLen < 1 {
-		return fmt.Errorf("%w: too short (min 1)", errs.ErrInvalidGivenName)
-	}
-	if givenNameLen > 100 {
-		return fmt.Errorf("%w: too long (max 100)", errs.ErrInvalidGivenName)
+// Equals safely compares two UserName structures, handling the MiddleName pointer.
+func (u UserName) Equals(other UserName) bool {
+	if u.GivenName != other.GivenName || u.FamilyName != other.FamilyName {
+		return false
 	}
 
-	familyNameLen := utf8.RuneCountInString(name.FamilyName)
-	if familyNameLen < 1 {
-		return fmt.Errorf("%w: too short (min 1)", errs.ErrInvalidFamilyName)
-	}
-	if familyNameLen > 100 {
-		return fmt.Errorf("%w: too long (max 100)", errs.ErrInvalidFamilyName)
+	if (u.MiddleName == nil && other.MiddleName != nil) || (u.MiddleName != nil && other.MiddleName == nil) {
+		return false
 	}
 
-	if name.MiddleName != nil {
-		middleNameLen := utf8.RuneCountInString(*name.MiddleName)
-		if middleNameLen < 1 {
-			return fmt.Errorf("%w: too short (min 1)", errs.ErrInvalidMiddleName)
-		}
-		if middleNameLen > 100 {
-			return fmt.Errorf("%w: too long (max 100)", errs.ErrInvalidMiddleName)
-		}
+	if u.MiddleName != nil && other.MiddleName != nil && *u.MiddleName != *other.MiddleName {
+		return false
 	}
-	return nil
+
+	return true
 }
 
 func NewUserName(givenName, familyName string, middleName *string) (*UserName, error) {
@@ -71,36 +56,10 @@ func NewUserName(givenName, familyName string, middleName *string) (*UserName, e
 }
 
 type User struct {
+	Entity
 	ID         int64
 	Name       UserName
 	CustomName *UserName
-}
-
-// validateUserID check that the user ID is a valid Snowflake ID from Zitadel
-func validateUserID(id int64) error {
-	if id <= 0 {
-		return fmt.Errorf("%w: must be greater than zero", errs.ErrInvalidUserID)
-	}
-	// Check that the timestamp component of the Snowflake ID is greater than zero
-	if (id >> 22) <= 0 {
-		return fmt.Errorf("%w: timestamp component must be greater than zero", errs.ErrInvalidUserID)
-	}
-	return nil
-}
-
-func validateUser(u User) error {
-	if err := validateUserID(u.ID); err != nil {
-		return err
-	}
-	if err := validateUserName(u.Name); err != nil {
-		return err
-	}
-	if u.CustomName != nil {
-		if err := validateUserName(*u.CustomName); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func NewUser(id int64, name UserName) (*User, error) {
@@ -111,6 +70,12 @@ func NewUser(id int64, name UserName) (*User, error) {
 	if err := validateUser(*u); err != nil {
 		return nil, err
 	}
+
+	u.recordEvent(UserCreatedEvent{
+		ID:   u.ID,
+		Name: name,
+	})
+
 	return u, nil
 }
 
@@ -134,21 +99,50 @@ func (u *User) PreferredName() UserName {
 }
 
 func (u *User) OverrideName(customName UserName) error {
+	if u.CustomName != nil && u.CustomName.Equals(customName) {
+		return nil
+	}
+
 	if err := validateUserName(customName); err != nil {
 		return err
 	}
+
 	u.CustomName = &customName
+
+	u.recordEvent(UserCustomNameUpdatedEvent{
+		ID:         u.ID,
+		CustomName: u.CustomName,
+	})
+
 	return nil
 }
 
 func (u *User) ClearCustomName() {
+	if u.CustomName == nil {
+		return
+	}
+
 	u.CustomName = nil
+	u.recordEvent(UserCustomNameUpdatedEvent{
+		ID:         u.ID,
+		CustomName: nil,
+	})
 }
 
 func (u *User) UpdateName(name UserName) error {
+	if u.Name.Equals(name) {
+		return nil
+	}
+
 	if err := validateUserName(name); err != nil {
 		return err
 	}
+
 	u.Name = name
+	u.recordEvent(UserNameUpdatedEvent{
+		ID:   u.ID,
+		Name: name,
+	})
+
 	return nil
 }
