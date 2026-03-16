@@ -3,10 +3,12 @@ package user
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/rs/zerolog"
 
+	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
 	"github.com/ulbwa/medincident-command-service/internal/common/persistence"
 	"github.com/ulbwa/medincident-command-service/internal/model"
 )
@@ -26,31 +28,31 @@ type (
 
 func (s *Service) Create(ctx context.Context, req *CreateUserRequest) (*CreateUserResponse, error) {
 	if req == nil {
-		return nil, errors.New("request is required")
+		return nil, errs.ErrInvalidRequest
 	}
 
 	identity, err := s.identityProvider.Get(ctx, req.ID)
 	if err != nil {
-		if errors.Is(err, ErrIdentityNotFound) {
-			return nil, errors.New("identity with the given ID does not exist")
+		if errors.Is(err, errs.ErrIdentityNotFound) {
+			return nil, errs.ErrIdentityNotFound
 		}
-		return nil, err
+		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
 
 	if identity.Human == nil {
-		return nil, errors.New("identity profile must be a human to create a user")
+		return nil, errs.ErrIdentityNotHuman
 	}
 
 	userName, err := model.NewUserName(req.GivenName, req.FamilyName, req.MiddleName)
 	if err != nil {
-		return nil, errors.New("invalid user name: " + err.Error())
+		return nil, err
 	}
 
 	var createdUser *model.User
 
 	txCtx, tx, err := s.txFactory.Begin(ctx)
 	if err != nil {
-		return nil, errors.New("failed to begin transaction: " + err.Error())
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
 	err = persistence.WithinTransaction(txCtx, tx, func() error {
@@ -59,20 +61,20 @@ func (s *Service) Create(ctx context.Context, req *CreateUserRequest) (*CreateUs
 			return err
 		}
 		if userExists {
-			return errors.New("user with the given ID already exists")
+			return errs.ErrUserAlreadyExists
 		}
 
 		user, err := model.NewUser(req.ID, *userName)
 		if err != nil {
-			return errors.New("invalid user: " + err.Error())
+			return err
 		}
 
 		if err := s.repo.Save(txCtx, user); err != nil {
-			return errors.New("failed to save user: " + err.Error())
+			return fmt.Errorf("failed to save user: %w", err)
 		}
 
 		if err := s.eventDispatcher.Dispatch(txCtx, tx, user); err != nil {
-			return errors.New("failed to dispatch domain events: " + err.Error())
+			return fmt.Errorf("failed to dispatch domain events: %w", err)
 		}
 
 		createdUser = user

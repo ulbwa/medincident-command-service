@@ -2,7 +2,6 @@ package user
 
 import (
 	"context"
-	"errors"
 )
 
 //go:generate go-enum -f=$GOFILE --marshal
@@ -36,8 +35,6 @@ type Identity struct {
 	Email    IdentityEmail
 	IsActive bool
 }
-
-var ErrIdentityNotFound = errors.New("identity not found")
 
 type IdentityProvider interface {
 	Get(ctx context.Context, id int64) (*Identity, error)

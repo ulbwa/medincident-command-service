@@ -2,11 +2,12 @@ package user
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"time"
 
 	"github.com/rs/zerolog"
 
+	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
 	"github.com/ulbwa/medincident-command-service/internal/common/persistence"
 	"github.com/ulbwa/medincident-command-service/internal/model"
 )
@@ -20,40 +21,40 @@ type OverrideUserNameRequest struct {
 
 func (s *Service) OverrideName(ctx context.Context, req *OverrideUserNameRequest) error {
 	if req == nil {
-		return errors.New("request is required")
+		return errs.ErrInvalidRequest
 	}
 
 	customName, err := model.NewUserName(req.GivenName, req.FamilyName, req.MiddleName)
 	if err != nil {
-		return errors.New("invalid custom name: " + err.Error())
+		return err
 	}
 
 	var updatedUser *model.User
 
 	txCtx, tx, err := s.txFactory.Begin(ctx)
 	if err != nil {
-		return errors.New("failed to begin transaction: " + err.Error())
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
 	err = persistence.WithinTransaction(txCtx, tx, func() error {
 		user, err := s.repo.GetByID(txCtx, req.UserID)
 		if err != nil {
-			return errors.New("failed to get user: " + err.Error())
+			return fmt.Errorf("failed to get user: %w", err)
 		}
 		if user == nil {
-			return errors.New("user not found")
+			return errs.ErrUserNotFound
 		}
 
 		if err := user.OverrideName(*customName); err != nil {
-			return errors.New("failed to override name: " + err.Error())
+			return err
 		}
 
 		if err := s.repo.Save(txCtx, user); err != nil {
-			return errors.New("failed to save user: " + err.Error())
+			return fmt.Errorf("failed to save user: %w", err)
 		}
 
 		if err := s.eventDispatcher.Dispatch(txCtx, tx, user); err != nil {
-			return errors.New("failed to dispatch domain events: " + err.Error())
+			return fmt.Errorf("failed to dispatch domain events: %w", err)
 		}
 
 		updatedUser = user
