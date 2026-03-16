@@ -10,11 +10,13 @@ var ErrInvariantViolation = errors.New("invariant violation")
 
 // User & Identity errors
 var (
-	ErrInvalidUserID          = fmt.Errorf("%w: invalid user id", ErrInvariantViolation)
-	ErrInvalidGivenName       = fmt.Errorf("%w: invalid given name", ErrInvariantViolation)
-	ErrInvalidFamilyName      = fmt.Errorf("%w: invalid family name", ErrInvariantViolation)
-	ErrInvalidMiddleName      = fmt.Errorf("%w: invalid middle name", ErrInvariantViolation)
-	ErrCustomNameAlreadyEmpty = fmt.Errorf("%w: custom name is already empty", ErrInvariantViolation)
+	ErrInvalidUserID           = fmt.Errorf("%w: invalid user id", ErrInvariantViolation)
+	ErrInvalidGivenName        = fmt.Errorf("%w: invalid given name", ErrInvariantViolation)
+	ErrInvalidFamilyName       = fmt.Errorf("%w: invalid family name", ErrInvariantViolation)
+	ErrInvalidMiddleName       = fmt.Errorf("%w: invalid middle name", ErrInvariantViolation)
+	ErrInvalidAdminSince       = fmt.Errorf("%w: invalid admin since", ErrInvariantViolation)
+	ErrAdminRoleGrantForbidden = fmt.Errorf("%w: admin role grant forbidden", ErrInvariantViolation)
+	ErrCustomNameAlreadyEmpty  = fmt.Errorf("%w: custom name is already empty", ErrInvariantViolation)
 )
 
 // Employment errors

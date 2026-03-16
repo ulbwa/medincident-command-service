@@ -2,6 +2,7 @@ package tests
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -220,4 +221,157 @@ func TestUser_UpdateName(t *testing.T) {
 	invalidName := model.UserName{GivenName: "B", FamilyName: ""}
 	err = user.UpdateName(invalidName)
 	assert.ErrorIs(t, err, errors.ErrInvalidFamilyName)
+}
+
+func TestUser_AdminStatus(t *testing.T) {
+	t.Parallel()
+	un, _ := model.NewUserName("Admin", "User", nil)
+	user, _ := model.NewUser(validUserID, un)
+	user.PopEvents()
+
+	// Default is not admin
+	assert.Nil(t, user.AdminRole)
+	assert.False(t, user.IsAdmin())
+
+	now := time.Now().UTC()
+	oldAdminTime := now.Add(-model.AdminMinimumTenure - 1*time.Hour)
+
+	// Create an admin actor with sufficient tenure
+	actorUn, _ := model.NewUserName("Actor", "User", nil)
+	actor, _ := model.NewUser(int64(2<<23), actorUn)
+	actor.AdminRole = &model.AdminRole{
+		GrantedAt: oldAdminTime,
+		GrantedBy: int64(3 << 23),
+	}
+	actor.PopEvents()
+
+	// Promote
+	err := user.GrantAdminRole(actor)
+	require.NoError(t, err)
+	assert.NotNil(t, user.AdminRole)
+	assert.False(t, user.AdminRole.GrantedAt.IsZero())
+	assert.Equal(t, actor.ID, user.AdminRole.GrantedBy)
+	assert.True(t, user.IsAdmin())
+
+	events := user.PopEvents()
+	require.Len(t, events, 1)
+	grantEvent, ok := events[0].(model.UserGrantedAdminRoleEvent)
+	require.True(t, ok)
+	assert.Equal(t, actor.ID, grantEvent.GrantedBy)
+
+	// Promote again (idempotent)
+	err = user.GrantAdminRole(actor)
+	require.NoError(t, err)
+	assert.NotNil(t, user.AdminRole)
+	assert.False(t, user.AdminRole.GrantedAt.IsZero())
+	assert.Equal(t, actor.ID, user.AdminRole.GrantedBy) // Should still be old ID
+	assert.Empty(t, user.PopEvents())
+
+	// Demote
+	err = user.RevokeAdminRole(actor)
+	require.NoError(t, err)
+	assert.Nil(t, user.AdminRole)
+	assert.False(t, user.IsAdmin())
+
+	events = user.PopEvents()
+	require.Len(t, events, 1)
+	revokeEvent, ok := events[0].(model.UserRevokedAdminRoleEvent)
+	require.True(t, ok)
+	assert.False(t, revokeEvent.RevokedAt.IsZero())
+	assert.Equal(t, actor.ID, revokeEvent.RevokedBy)
+
+	// Demote again (idempotent)
+	err = user.RevokeAdminRole(actor)
+	require.NoError(t, err)
+	assert.Nil(t, user.AdminRole)
+	assert.Empty(t, user.PopEvents())
+}
+
+func TestRestoreUser_AdminRoleInvariant(t *testing.T) {
+	t.Parallel()
+
+	un, _ := model.NewUserName("Admin", "User", nil)
+	now := time.Now().UTC()
+	granterID := int64(3 << 23)
+
+	t.Run("NonAdminUserRestored", func(t *testing.T) {
+		t.Parallel()
+
+		user, err := model.RestoreUser(validUserID, un, nil, nil)
+		require.NoError(t, err)
+		require.NotNil(t, user)
+		assert.Nil(t, user.AdminRole)
+	})
+
+	t.Run("AdminWithoutGrantedAt", func(t *testing.T) {
+		t.Parallel()
+
+		adminRole := &model.AdminRole{
+			GrantedAt: time.Time{},
+			GrantedBy: granterID,
+		}
+		_, err := model.RestoreUser(validUserID, un, nil, adminRole)
+		assert.ErrorIs(t, err, errors.ErrInvalidAdminSince)
+	})
+
+	t.Run("ValidAdminRole", func(t *testing.T) {
+		t.Parallel()
+
+		adminRole := &model.AdminRole{
+			GrantedAt: now,
+			GrantedBy: granterID,
+		}
+		user, err := model.RestoreUser(validUserID, un, nil, adminRole)
+		require.NoError(t, err)
+		require.NotNil(t, user)
+		assert.NotNil(t, user.AdminRole)
+		assert.Equal(t, now, user.AdminRole.GrantedAt)
+		assert.Equal(t, granterID, user.AdminRole.GrantedBy)
+	})
+}
+
+func TestUser_CanGrantAdminRole(t *testing.T) {
+	t.Parallel()
+
+	un, _ := model.NewUserName("Admin", "User", nil)
+	actor, _ := model.NewUser(validUserID, un)
+	now := time.Now().UTC()
+	granterID := int64(4 << 23)
+
+	t.Run("NotAdmin", func(t *testing.T) {
+		t.Parallel()
+
+		err := actor.CanGrantAdminRole()
+		assert.ErrorIs(t, err, errors.ErrAdminRoleGrantForbidden)
+	})
+
+	t.Run("AdminLessThan72Hours", func(t *testing.T) {
+		t.Parallel()
+
+		recentAdminSince := now.Add(-model.AdminMinimumTenure + 1*time.Hour)
+		adminRole := &model.AdminRole{
+			GrantedAt: recentAdminSince,
+			GrantedBy: granterID,
+		}
+		admin, err := model.RestoreUser(validUserID, un, nil, adminRole)
+		require.NoError(t, err)
+
+		err = admin.CanGrantAdminRole()
+		assert.ErrorIs(t, err, errors.ErrAdminRoleGrantForbidden)
+	})
+
+	t.Run("AdminMoreThan72Hours", func(t *testing.T) {
+		t.Parallel()
+
+		oldAdminSince := now.Add(-model.AdminMinimumTenure - 1*time.Hour)
+		adminRole := &model.AdminRole{
+			GrantedAt: oldAdminSince,
+			GrantedBy: granterID,
+		}
+		admin, err := model.RestoreUser(validUserID, un, nil, adminRole)
+		require.NoError(t, err)
+
+		err = admin.CanGrantAdminRole()
+		require.NoError(t, err)
+	})
 }

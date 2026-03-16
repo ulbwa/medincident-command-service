@@ -60,5 +60,13 @@ func validateUser(u User) error {
 			return err
 		}
 	}
+	if u.AdminRole != nil {
+		if u.AdminRole.GrantedAt.IsZero() {
+			return fmt.Errorf("%w: must not be zero for admin user", errs.ErrInvalidAdminSince)
+		}
+		if err := validateUserID(u.AdminRole.GrantedBy); err != nil {
+			return fmt.Errorf("invalid admin role granter id: %w", err)
+		}
+	}
 	return nil
 }
