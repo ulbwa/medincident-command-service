@@ -115,11 +115,11 @@ func TestUser_CreationAndEvents(t *testing.T) {
 	un, _ := model.NewUserName("Test", "Testerov", nil)
 
 	// Should create a user and assign UserCreatedEvent
-	user, err := model.NewUser(validUserID, *un)
+	user, err := model.NewUser(validUserID, un)
 	require.NoError(t, err)
 	require.NotNil(t, user)
 	assert.Equal(t, validUserID, user.ID)
-	assert.Equal(t, *un, user.Name)
+	assert.Equal(t, un, user.Name)
 	assert.Nil(t, user.CustomName)
 
 	events := user.PopEvents()
@@ -127,21 +127,21 @@ func TestUser_CreationAndEvents(t *testing.T) {
 	createdEvent, ok := events[0].(model.UserCreatedEvent)
 	require.True(t, ok)
 	assert.Equal(t, validUserID, createdEvent.ID)
-	assert.Equal(t, *un, createdEvent.Name)
+	assert.Equal(t, un, createdEvent.Name)
 
 	// Invalid ID validation check
-	_, err = model.NewUser(0, *un)
+	_, err = model.NewUser(0, un)
 	assert.ErrorIs(t, err, errors.ErrInvalidUserID)
 
 	// Invalid snowflake without timestamp
-	_, err = model.NewUser(1<<20, *un)
+	_, err = model.NewUser(1<<20, un)
 	assert.ErrorIs(t, err, errors.ErrInvalidUserID)
 }
 
 func TestUser_ClearCustomName(t *testing.T) {
 	t.Parallel()
 	un, _ := model.NewUserName("Base", "Name", nil)
-	user, _ := model.NewUser(validUserID, *un)
+	user, _ := model.NewUser(validUserID, un)
 	user.PopEvents() // Clear initial event
 
 	// Error if already clear
@@ -150,7 +150,7 @@ func TestUser_ClearCustomName(t *testing.T) {
 
 	// Add custom name directly for test
 	customName, _ := model.NewUserName("Custom", "Name", nil)
-	_ = user.OverrideName(*customName)
+	_ = user.OverrideName(customName)
 	user.PopEvents()
 
 	// Clear successfully
@@ -168,14 +168,14 @@ func TestUser_ClearCustomName(t *testing.T) {
 func TestUser_OverrideName(t *testing.T) {
 	t.Parallel()
 	un, _ := model.NewUserName("Base", "Name", nil)
-	user, _ := model.NewUser(validUserID, *un)
+	user, _ := model.NewUser(validUserID, un)
 	customName, _ := model.NewUserName("Custom", "Name", nil)
 	user.PopEvents()
 
-	err := user.OverrideName(*customName)
+	err := user.OverrideName(customName)
 	require.NoError(t, err)
 	assert.NotNil(t, user.CustomName)
-	assert.True(t, user.CustomName.Equals(*customName))
+	assert.True(t, user.CustomName.Equals(customName))
 	pn := user.PreferredName()
 	assert.Equal(t, "Name Custom", (&pn).DisplayName())
 
@@ -185,7 +185,7 @@ func TestUser_OverrideName(t *testing.T) {
 
 	// Verify idempotency (same name should skip update)
 	user.PopEvents()
-	err = user.OverrideName(*customName)
+	err = user.OverrideName(customName)
 	require.NoError(t, err)
 	assert.Len(t, user.PopEvents(), 0) // No new events
 
@@ -198,13 +198,13 @@ func TestUser_OverrideName(t *testing.T) {
 func TestUser_UpdateName(t *testing.T) {
 	t.Parallel()
 	un, _ := model.NewUserName("First", "Last", nil)
-	user, _ := model.NewUser(validUserID, *un)
+	user, _ := model.NewUser(validUserID, un)
 	newName, _ := model.NewUserName("NewFirst", "NewLast", nil)
 	user.PopEvents()
 
-	err := user.UpdateName(*newName)
+	err := user.UpdateName(newName)
 	require.NoError(t, err)
-	assert.True(t, user.Name.Equals(*newName))
+	assert.True(t, user.Name.Equals(newName))
 
 	events := user.PopEvents()
 	require.Len(t, events, 1)
@@ -212,7 +212,7 @@ func TestUser_UpdateName(t *testing.T) {
 
 	// Idempotency check
 	user.PopEvents()
-	err = user.UpdateName(*newName)
+	err = user.UpdateName(newName)
 	require.NoError(t, err)
 	assert.Len(t, user.PopEvents(), 0)
 

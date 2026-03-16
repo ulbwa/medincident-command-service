@@ -95,7 +95,7 @@ func (s *Service) Create(ctx context.Context, req *CreateUserRequest) (*CreateUs
 			return errs.ErrUserAlreadyExists
 		}
 
-		user, err := model.NewUser(req.ID, *userName)
+		user, err := model.NewUser(req.ID, userName)
 		if err != nil {
 			return err
 		}
@@ -152,7 +152,7 @@ func (s *Service) OverrideName(ctx context.Context, req *OverrideUserNameRequest
 			return fmt.Errorf("failed to get user: %w", err)
 		}
 
-		if err := user.OverrideName(*customName); err != nil {
+		if err := user.OverrideName(customName); err != nil {
 			return err
 		}
 

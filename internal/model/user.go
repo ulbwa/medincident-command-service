@@ -12,16 +12,19 @@ type UserName struct {
 	MiddleName *string
 }
 
-func (u *UserName) DisplayName() string {
+func (u UserName) DisplayName() string {
 	if u.MiddleName != nil {
 		return fmt.Sprintf("%s %s %s", u.FamilyName, u.GivenName, *u.MiddleName)
 	}
 	return fmt.Sprintf("%s %s", u.FamilyName, u.GivenName)
 }
 
-func (u *UserName) ShortName() string {
+func (u UserName) ShortName() string {
+	if u.GivenName == "" {
+		return ""
+	}
 	givenInitial := []rune(u.GivenName)[0]
-	if u.MiddleName != nil {
+	if u.MiddleName != nil && *u.MiddleName != "" {
 		middleInitial := []rune(*u.MiddleName)[0]
 		return fmt.Sprintf("%s %c.%c.", u.FamilyName, givenInitial, middleInitial)
 	}
@@ -45,16 +48,16 @@ func (u UserName) Equals(other UserName) bool {
 	return true
 }
 
-func NewUserName(givenName, familyName string, middleName *string) (*UserName, error) {
+func NewUserName(givenName, familyName string, middleName *string) (UserName, error) {
 	name := UserName{
 		GivenName:  givenName,
 		FamilyName: familyName,
 		MiddleName: middleName,
 	}
 	if err := validateUserName(name); err != nil {
-		return nil, err
+		return UserName{}, err
 	}
-	return &name, nil
+	return name, nil
 }
 
 type User struct {
