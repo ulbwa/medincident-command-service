@@ -1,6 +1,6 @@
 module github.com/ulbwa/medincident-command-service
 
-go 1.26.0
+go 1.26.1
 
 tool (
 	github.com/abice/go-enum
@@ -17,6 +17,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/rs/zerolog v1.34.0
 	github.com/samber/do/v2 v2.0.0
+	github.com/stretchr/testify v1.11.1
 	go.yaml.in/yaml/v3 v3.0.4
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
@@ -244,7 +245,6 @@ require (
 	github.com/ssgreg/nlreturn/v2 v2.2.1 // indirect
 	github.com/stbenjam/no-sprintf-host-port v0.3.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/subosito/gotenv v1.4.1 // indirect
 	github.com/tetafro/godot v1.5.4 // indirect
 	github.com/timakin/bodyclose v0.0.0-20241222091800-1db5c5ca4d67 // indirect
