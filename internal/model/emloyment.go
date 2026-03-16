@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	errs "github.com/ulbwa/medincident-command-service/internal/errors"
+	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
 )
 
 type Employment struct {

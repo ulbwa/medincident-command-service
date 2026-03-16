@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"unicode/utf8"
 
-	errs "github.com/ulbwa/medincident-command-service/internal/errors"
+	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
 )
 
 func validateUserName(name UserName) error {

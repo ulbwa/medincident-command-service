@@ -9,18 +9,9 @@ import (
 	"github.com/rs/zerolog"
 )
 
-var ErrTransactionAlreadyExists = errors.New("transaction already exists and cannot be created again")
-
 type TransactionFactory interface {
 	Begin(ctx context.Context) (context.Context, Transaction, error)
 }
-
-var (
-	ErrTransactionDead              = errors.New("transaction is dead and operation cannot be performed")
-	ErrTransactionAlreadyCommitted  = errors.New("transaction already committed and cannot be rolled back")
-	ErrTransactionAlreadyRolledBack = errors.New("transaction already rolled back and cannot be committed")
-	ErrSavepointNotFound            = errors.New("savepoint with given name not found")
-)
 
 type Transaction interface {
 	io.Closer
