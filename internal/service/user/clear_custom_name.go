@@ -3,9 +3,6 @@ package user
 import (
 	"context"
 	"fmt"
-	"time"
-
-	"github.com/rs/zerolog"
 
 	"github.com/ulbwa/medincident-command-service/internal/common/persistence"
 	"github.com/ulbwa/medincident-command-service/internal/model"
@@ -45,18 +42,7 @@ func (s *Service) ClearCustomName(ctx context.Context, userID int64) error {
 		return err
 	}
 
-	bgCtx := context.WithoutCancel(ctx)
-	go func() {
-		syncCtx, cancel := context.WithTimeout(bgCtx, 2*time.Minute)
-		defer cancel()
-
-		if err := s.syncHumanIdentity(syncCtx, syncedUser); err != nil {
-			zerolog.Ctx(syncCtx).Error().Err(err).Int64("user_id", syncedUser.ID).Msg("background profile sync to identity service failed after clearing custom name")
-			return
-		}
-
-		zerolog.Ctx(syncCtx).Debug().Int64("user_id", syncedUser.ID).Msg("successfully synced user profile to identity service in background after clearing custom name")
-	}()
+	s.dispatchBackgroundIdentitySync(ctx, syncedUser, "clear custom name")
 
 	return nil
 }

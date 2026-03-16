@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-
-	"github.com/rs/zerolog"
 
 	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
 	"github.com/ulbwa/medincident-command-service/internal/common/persistence"
@@ -84,18 +81,7 @@ func (s *Service) Create(ctx context.Context, req *CreateUserRequest) (*CreateUs
 		return nil, err
 	}
 
-	bgCtx := context.WithoutCancel(ctx)
-	go func() {
-		syncCtx, cancel := context.WithTimeout(bgCtx, 2*time.Minute)
-		defer cancel()
-
-		if err := s.syncHumanIdentity(syncCtx, createdUser); err != nil {
-			zerolog.Ctx(syncCtx).Error().Err(err).Int64("user_id", createdUser.ID).Msg("background profile sync to identity service failed")
-			return
-		}
-
-		zerolog.Ctx(syncCtx).Debug().Int64("user_id", createdUser.ID).Msg("successfully synced user profile to identity service in background")
-	}()
+	s.dispatchBackgroundIdentitySync(ctx, createdUser, "create user")
 
 	return &CreateUserResponse{
 		User: createdUser,

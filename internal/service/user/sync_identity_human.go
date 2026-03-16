@@ -3,12 +3,36 @@ package user
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/rs/zerolog"
 
 	"github.com/ulbwa/medincident-command-service/internal/model"
 	"github.com/ulbwa/medincident-command-service/pkg/utils"
 )
+
+func (s *Service) dispatchBackgroundIdentitySync(ctx context.Context, user *model.User, operation string) {
+	bgCtx := context.WithoutCancel(ctx)
+	go func() {
+		syncCtx, cancel := context.WithTimeout(bgCtx, 2*time.Minute)
+		defer cancel()
+
+		if err := s.syncHumanIdentity(syncCtx, user); err != nil {
+			zerolog.Ctx(syncCtx).Error().
+				Err(err).
+				Int64("user_id", user.ID).
+				Str("operation", operation).
+				Msg("background profile sync to identity service failed")
+			return
+		}
+
+		zerolog.Ctx(syncCtx).Debug().
+			Int64("user_id", user.ID).
+			Str("operation", operation).
+			Msg("successfully synced user profile to identity service in background")
+	}()
+}
 
 func (s *Service) syncHumanIdentity(ctx context.Context, user *model.User) error {
 	identity, err := s.identityProvider.Get(ctx, user.ID)
