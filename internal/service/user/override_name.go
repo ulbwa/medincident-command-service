@@ -41,9 +41,6 @@ func (s *Service) OverrideName(ctx context.Context, req *OverrideUserNameRequest
 		if err != nil {
 			return fmt.Errorf("failed to get user: %w", err)
 		}
-		if user == nil {
-			return errs.ErrUserNotFound
-		}
 
 		if err := user.OverrideName(*customName); err != nil {
 			return err

@@ -2,6 +2,8 @@ package model
 
 import (
 	"fmt"
+
+	"github.com/ulbwa/medincident-command-service/internal/common/errors"
 )
 
 type UserName struct {
@@ -117,9 +119,9 @@ func (u *User) OverrideName(customName UserName) error {
 	return nil
 }
 
-func (u *User) ClearCustomName() {
+func (u *User) ClearCustomName() error {
 	if u.CustomName == nil {
-		return
+		return errors.ErrCustomNameAlreadyEmpty
 	}
 
 	u.CustomName = nil
@@ -127,6 +129,8 @@ func (u *User) ClearCustomName() {
 		ID:         u.ID,
 		CustomName: nil,
 	})
+
+	return nil
 }
 
 func (u *User) UpdateName(name UserName) error {
