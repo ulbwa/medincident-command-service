@@ -2,9 +2,12 @@ package model
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/ulbwa/medincident-command-service/internal/common/errors"
 )
+
+const AdminMinimumTenure = 72 * time.Hour
 
 type UserName struct {
 	GivenName  string
@@ -60,17 +63,24 @@ func NewUserName(givenName, familyName string, middleName *string) (UserName, er
 	return name, nil
 }
 
+type AdminRole struct {
+	GrantedAt time.Time
+	GrantedBy int64
+}
+
 type User struct {
 	Entity
 	ID         int64
 	Name       UserName
 	CustomName *UserName
+	AdminRole  *AdminRole
 }
 
 func NewUser(id int64, name UserName) (*User, error) {
 	u := &User{
-		ID:   id,
-		Name: name,
+		ID:        id,
+		Name:      name,
+		AdminRole: nil,
 	}
 	if err := validateUser(*u); err != nil {
 		return nil, err
@@ -84,11 +94,12 @@ func NewUser(id int64, name UserName) (*User, error) {
 	return u, nil
 }
 
-func RestoreUser(id int64, name UserName, customName *UserName) (*User, error) {
+func RestoreUser(id int64, name UserName, customName *UserName, adminRole *AdminRole) (*User, error) {
 	u := &User{
 		ID:         id,
 		Name:       name,
 		CustomName: customName,
+		AdminRole:  adminRole,
 	}
 	if err := validateUser(*u); err != nil {
 		return nil, err
@@ -101,6 +112,10 @@ func (u *User) PreferredName() UserName {
 		return *u.CustomName
 	}
 	return u.Name
+}
+
+func (u *User) IsAdmin() bool {
+	return u.AdminRole != nil
 }
 
 func (u *User) OverrideName(customName UserName) error {
@@ -149,6 +164,75 @@ func (u *User) UpdateName(name UserName) error {
 	u.recordEvent(UserNameUpdatedEvent{
 		ID:   u.ID,
 		Name: name,
+	})
+
+	return nil
+}
+
+func (u *User) CanGrantAdminRole() error {
+	if !u.IsAdmin() {
+		return fmt.Errorf("%w: actor is not admin", errors.ErrAdminRoleGrantForbidden)
+	}
+
+	if u.AdminRole.GrantedAt.IsZero() {
+		return fmt.Errorf("%w: admin since must not be zero time", errors.ErrAdminRoleGrantForbidden)
+	}
+
+	if time.Since(u.AdminRole.GrantedAt) < AdminMinimumTenure {
+		return fmt.Errorf("%w: actor admin tenure is less than %.0f hours", errors.ErrAdminRoleGrantForbidden, AdminMinimumTenure.Hours())
+	}
+
+	return nil
+}
+
+func (u *User) GrantAdminRole(actor *User) error {
+	if actor == nil {
+		return fmt.Errorf("%w: actor is nil", errors.ErrAdminRoleGrantForbidden)
+	}
+
+	if err := actor.CanGrantAdminRole(); err != nil {
+		return err
+	}
+
+	if u.IsAdmin() {
+		return nil // idempotent
+	}
+
+	at := time.Now().UTC()
+
+	u.AdminRole = &AdminRole{
+		GrantedAt: at,
+		GrantedBy: actor.ID,
+	}
+	u.recordEvent(UserGrantedAdminRoleEvent{
+		ID:        u.ID,
+		GrantedAt: at,
+		GrantedBy: actor.ID,
+	})
+
+	return nil
+}
+
+func (u *User) RevokeAdminRole(actor *User) error {
+	if actor == nil {
+		return fmt.Errorf("%w: actor is nil", errors.ErrAdminRoleGrantForbidden)
+	}
+
+	if err := actor.CanGrantAdminRole(); err != nil {
+		return err
+	}
+
+	if !u.IsAdmin() {
+		return nil // idempotent
+	}
+
+	revokedAt := time.Now().UTC()
+
+	u.AdminRole = nil
+	u.recordEvent(UserRevokedAdminRoleEvent{
+		ID:        u.ID,
+		RevokedAt: revokedAt,
+		RevokedBy: actor.ID,
 	})
 
 	return nil
