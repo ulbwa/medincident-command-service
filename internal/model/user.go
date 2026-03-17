@@ -179,7 +179,7 @@ func (u *User) CanGrantAdminRole() error {
 	}
 
 	if time.Since(u.AdminRole.GrantedAt) < AdminMinimumTenure {
-		return fmt.Errorf("%w: actor admin tenure is less than 72 hours", errors.ErrAdminRoleGrantForbidden)
+		return fmt.Errorf("%w: actor admin tenure is less than %.0f hours", errors.ErrAdminRoleGrantForbidden, AdminMinimumTenure.Hours())
 	}
 
 	return nil
