@@ -133,7 +133,7 @@ func TestService_GrantAdminRole(t *testing.T) {
 		oldAdminTime := time.Now().Add(-100 * time.Hour)
 		actor.AdminRole = &model.AdminRole{
 			GrantedAt: oldAdminTime,
-			GrantedBy: int64(999),
+			GrantedBy: int64(3 << 23),
 		}
 		actor.PopEvents()
 
@@ -198,7 +198,7 @@ func TestService_GrantAdminRole(t *testing.T) {
 		recentAdminTime := time.Now()
 		actor.AdminRole = &model.AdminRole{
 			GrantedAt: recentAdminTime,
-			GrantedBy: int64(999),
+			GrantedBy: int64(3 << 23),
 		}
 
 		mockTxFactory.On("Begin", ctx).Return(ctx, mockTx, nil)
@@ -236,7 +236,7 @@ func TestService_RevokeAdminRole(t *testing.T) {
 		userAdminTime := time.Now()
 		user.AdminRole = &model.AdminRole{
 			GrantedAt: userAdminTime,
-			GrantedBy: int64(999),
+			GrantedBy: int64(3 << 23),
 		}
 		user.PopEvents()
 
@@ -245,7 +245,7 @@ func TestService_RevokeAdminRole(t *testing.T) {
 		actorAdminTime := time.Now().Add(-100 * time.Hour)
 		actor.AdminRole = &model.AdminRole{
 			GrantedAt: actorAdminTime,
-			GrantedBy: int64(999),
+			GrantedBy: int64(4 << 23),
 		}
 		actor.PopEvents()
 
@@ -310,7 +310,7 @@ func TestService_RevokeAdminRole(t *testing.T) {
 		recentAdminTime := time.Now()
 		actor.AdminRole = &model.AdminRole{
 			GrantedAt: recentAdminTime,
-			GrantedBy: int64(999),
+			GrantedBy: int64(3 << 23),
 		}
 
 		mockTxFactory.On("Begin", ctx).Return(ctx, mockTx, nil)
