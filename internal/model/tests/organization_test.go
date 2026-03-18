@@ -125,6 +125,32 @@ func TestOrganization_NewOrganization(t *testing.T) {
 	})
 }
 
+func TestOrganization_NewAndRestore_AvoidAliasing(t *testing.T) {
+	t.Parallel()
+
+	description := "Initial description"
+	point := model.GeoPoint{Latitude: 55.7539, Longitude: 37.6208}
+	address := model.Address{Value: "Moscow, Red Square, 1", Point: &point}
+
+	created, err := model.NewOrganization(validOrgID(), "Org", &description, address)
+	require.NoError(t, err)
+
+	restored, err := model.RestoreOrganization(validOrgID(), "Org", &description, address)
+	require.NoError(t, err)
+
+	description = "Mutated outside"
+	point.Latitude = 10
+
+	require.NotNil(t, created.Description)
+	require.NotNil(t, restored.Description)
+	assert.Equal(t, "Initial description", *created.Description)
+	assert.Equal(t, "Initial description", *restored.Description)
+	require.NotNil(t, created.LegalAddress.Point)
+	require.NotNil(t, restored.LegalAddress.Point)
+	assert.Equal(t, 55.7539, created.LegalAddress.Point.Latitude)
+	assert.Equal(t, 55.7539, restored.LegalAddress.Point.Latitude)
+}
+
 func TestOrganization_UpdateName(t *testing.T) {
 	t.Parallel()
 

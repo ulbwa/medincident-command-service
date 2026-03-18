@@ -2,6 +2,8 @@ package model
 
 import (
 	"github.com/google/uuid"
+
+	"github.com/ulbwa/medincident-command-service/pkg/utils"
 )
 
 // Organization represents a legal organization (aggregate root).
@@ -18,8 +20,8 @@ func NewOrganization(id uuid.UUID, name string, description *string, legalAddres
 	o := &Organization{
 		ID:           id,
 		Name:         name,
-		Description:  description,
-		LegalAddress: legalAddress,
+		Description:  utils.PtrClone(description),
+		LegalAddress: legalAddress.copy(),
 	}
 
 	if err := validateOrganization(o); err != nil {
@@ -41,8 +43,8 @@ func RestoreOrganization(id uuid.UUID, name string, description *string, legalAd
 	o := &Organization{
 		ID:           id,
 		Name:         name,
-		Description:  description,
-		LegalAddress: legalAddress,
+		Description:  utils.PtrClone(description),
+		LegalAddress: legalAddress.copy(),
 	}
 
 	if err := validateOrganization(o); err != nil {
@@ -111,10 +113,10 @@ func (o *Organization) UpdateLegalAddress(address Address) error {
 		return err
 	}
 
-	o.LegalAddress = address
+	o.LegalAddress = address.copy()
 	o.recordEvent(OrganizationLegalAddressUpdatedEvent{
 		ID:           o.ID,
-		LegalAddress: address,
+		LegalAddress: o.LegalAddress,
 	})
 	return nil
 }

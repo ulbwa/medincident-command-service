@@ -140,6 +140,40 @@ func TestUser_CreationAndEvents(t *testing.T) {
 	assert.ErrorIs(t, err, errors.ErrInvalidUserID)
 }
 
+func TestUser_Name_AvoidAliasing(t *testing.T) {
+	t.Parallel()
+
+	middleName := "Ivanovich"
+	name := model.UserName{
+		GivenName:  "Ivan",
+		FamilyName: "Ivanov",
+		MiddleName: &middleName,
+	}
+
+	user, err := model.NewUser(validUserID, name)
+	require.NoError(t, err)
+	require.NotNil(t, user.Name.MiddleName)
+	assert.Equal(t, "Ivanovich", *user.Name.MiddleName)
+
+	middleName = "Mutated outside"
+	assert.Equal(t, "Ivanovich", *user.Name.MiddleName)
+
+	newMiddleName := "Petrovich"
+	newName := model.UserName{
+		GivenName:  "Petr",
+		FamilyName: "Petrov",
+		MiddleName: &newMiddleName,
+	}
+
+	err = user.UpdateName(newName)
+	require.NoError(t, err)
+	require.NotNil(t, user.Name.MiddleName)
+	assert.Equal(t, "Petrovich", *user.Name.MiddleName)
+
+	newMiddleName = "Changed again"
+	assert.Equal(t, "Petrovich", *user.Name.MiddleName)
+}
+
 func TestUser_RemoveCustomName(t *testing.T) {
 	t.Parallel()
 	un, _ := model.NewUserName("Base", "Name", nil)

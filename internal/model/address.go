@@ -21,11 +21,6 @@ func NewGeoPoint(latitude, longitude float64) (GeoPoint, error) {
 	return point, nil
 }
 
-// RestoreGeoPoint restores an existing validated GeoPoint.
-func RestoreGeoPoint(latitude, longitude float64) (GeoPoint, error) {
-	return NewGeoPoint(latitude, longitude)
-}
-
 // Equals compares two GeoPoint instances.
 func (g GeoPoint) Equals(other GeoPoint) bool {
 	return g.Latitude == other.Latitude && g.Longitude == other.Longitude
@@ -37,29 +32,20 @@ type Address struct {
 	Point *GeoPoint
 }
 
-// NewAddress creates a validated Address.
-func NewAddress(value string, point *GeoPoint) (Address, error) {
-	var pointCopy *GeoPoint
-	if point != nil {
-		pointCopy = point.copy()
+func (a Address) copy() Address {
+	cloned := a
+	if a.Point != nil {
+		cloned.Point = a.Point.copy()
 	}
-
-	address := Address{Value: value, Point: pointCopy}
-	if err := validateAddress(address); err != nil {
-		return Address{}, err
-	}
-
-	return address, nil
+	return cloned
 }
 
-// RestoreAddress restores an existing validated Address.
-func RestoreAddress(value string, point *GeoPoint) (Address, error) {
-	var pointCopy *GeoPoint
+// NewAddress creates a validated Address.
+func NewAddress(value string, point *GeoPoint) (Address, error) {
+	address := Address{Value: value}
 	if point != nil {
-		pointCopy = point.copy()
+		address.Point = point.copy()
 	}
-
-	address := Address{Value: value, Point: pointCopy}
 	if err := validateAddress(address); err != nil {
 		return Address{}, err
 	}

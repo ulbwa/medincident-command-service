@@ -19,15 +19,7 @@ func (d EmploymentDeputy) copy() *EmploymentDeputy {
 	return &cloned
 }
 
-func RestoreEmploymentDeputy(deputyID int64) (EmploymentDeputy, error) {
-	deputy, err := newEmploymentDeputy(deputyID)
-	if err != nil {
-		return EmploymentDeputy{}, err
-	}
-	return deputy, nil
-}
-
-func newEmploymentDeputy(deputyID int64) (EmploymentDeputy, error) {
+func NewEmploymentDeputy(deputyID int64) (EmploymentDeputy, error) {
 	if err := validateDeputyID(deputyID); err != nil {
 		return EmploymentDeputy{}, err
 	}
@@ -48,15 +40,7 @@ func (v EmploymentVacation) copy() *EmploymentVacation {
 	return &cloned
 }
 
-func RestoreEmploymentVacation(startsAt time.Time, endsAt *time.Time) (EmploymentVacation, error) {
-	vacation, err := newEmploymentVacation(startsAt, endsAt)
-	if err != nil {
-		return EmploymentVacation{}, err
-	}
-	return vacation, nil
-}
-
-func newEmploymentVacation(startsAt time.Time, endsAt *time.Time) (EmploymentVacation, error) {
+func NewEmploymentVacation(startsAt time.Time, endsAt *time.Time) (EmploymentVacation, error) {
 	v := EmploymentVacation{
 		StartsAt: startsAt,
 		EndsAt:   utils.PtrClone(endsAt),
@@ -169,7 +153,7 @@ func (e *Employment) AssignDeputy(deputyID int64) error {
 		return nil
 	}
 
-	deputy, err := newEmploymentDeputy(deputyID)
+	deputy, err := NewEmploymentDeputy(deputyID)
 	if err != nil {
 		return err
 	}
@@ -201,7 +185,7 @@ func (e *Employment) GrantVacation(endAt *time.Time) error {
 }
 
 func (e *Employment) ScheduleVacation(startsAt time.Time, endsAt *time.Time) error {
-	vacation, err := newEmploymentVacation(startsAt, endsAt)
+	vacation, err := NewEmploymentVacation(startsAt, endsAt)
 	if err != nil {
 		return err
 	}

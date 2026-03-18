@@ -92,9 +92,11 @@ type User struct {
 }
 
 func NewUser(id int64, name UserName) (*User, error) {
+	nameCopy := *name.copy()
+
 	u := &User{
 		ID:          id,
-		Name:        name,
+		Name:        nameCopy,
 		AdminRole:   nil,
 		Employments: make([]*Employment, 0),
 	}
@@ -104,13 +106,15 @@ func NewUser(id int64, name UserName) (*User, error) {
 
 	u.recordEvent(UserCreatedEvent{
 		ID:   u.ID,
-		Name: name,
+		Name: u.Name,
 	})
 
 	return u, nil
 }
 
 func RestoreUser(id int64, name UserName, customName *UserName, adminRole *AdminRole) (*User, error) {
+	nameCopy := *name.copy()
+
 	var customNameCopy *UserName
 	if customName != nil {
 		customNameCopy = customName.copy()
@@ -123,7 +127,7 @@ func RestoreUser(id int64, name UserName, customName *UserName, adminRole *Admin
 
 	u := &User{
 		ID:          id,
-		Name:        name,
+		Name:        nameCopy,
 		CustomName:  customNameCopy,
 		AdminRole:   adminRoleCopy,
 		Employments: make([]*Employment, 0),
@@ -187,10 +191,10 @@ func (u *User) UpdateName(name UserName) error {
 		return err
 	}
 
-	u.Name = name
+	u.Name = *name.copy()
 	u.recordEvent(UserNameUpdatedEvent{
 		ID:   u.ID,
-		Name: name,
+		Name: u.Name,
 	})
 
 	return nil

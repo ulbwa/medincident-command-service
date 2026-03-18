@@ -108,24 +108,24 @@ func TestRestoreEmployment_VacationInvariant(t *testing.T) {
 	assert.ErrorIs(t, err, errs.ErrInvalidEmploymentVacation)
 }
 
-func TestRestoreEmploymentDeputy_Validation(t *testing.T) {
+func TestNewEmploymentDeputy_Validation(t *testing.T) {
 	t.Parallel()
 
-	deputy, err := model.RestoreEmploymentDeputy(int64(2 << 23))
+	deputy, err := model.NewEmploymentDeputy(int64(2 << 23))
 	require.NoError(t, err)
 	assert.Equal(t, int64(2<<23), deputy.ID)
 
-	_, err = model.RestoreEmploymentDeputy(0)
+	_, err = model.NewEmploymentDeputy(0)
 	assert.ErrorIs(t, err, errs.ErrInvalidEmploymentDeputy)
 }
 
-func TestRestoreEmploymentVacation_CopyEndsAt(t *testing.T) {
+func TestNewEmploymentVacation_CopyEndsAt(t *testing.T) {
 	t.Parallel()
 
 	startsAt := time.Now().UTC().Add(24 * time.Hour)
 	endsAt := startsAt.Add(48 * time.Hour)
 
-	vacation, err := model.RestoreEmploymentVacation(startsAt, &endsAt)
+	vacation, err := model.NewEmploymentVacation(startsAt, &endsAt)
 	require.NoError(t, err)
 	require.NotNil(t, vacation.EndsAt)
 	assert.Equal(t, endsAt, *vacation.EndsAt)

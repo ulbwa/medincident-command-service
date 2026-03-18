@@ -2,6 +2,8 @@ package model
 
 import (
 	"github.com/google/uuid"
+
+	"github.com/ulbwa/medincident-command-service/pkg/utils"
 )
 
 // Department represents a department within a clinic.
@@ -19,7 +21,7 @@ func NewDepartment(id, clinicID uuid.UUID, name string, description *string) (*D
 		ID:          id,
 		ClinicID:    clinicID,
 		Name:        name,
-		Description: description,
+		Description: utils.PtrClone(description),
 	}
 
 	if err := validateDepartment(d); err != nil {
@@ -42,7 +44,7 @@ func RestoreDepartment(id, clinicID uuid.UUID, name string, description *string)
 		ID:          id,
 		ClinicID:    clinicID,
 		Name:        name,
-		Description: description,
+		Description: utils.PtrClone(description),
 	}
 
 	if err := validateDepartment(d); err != nil {

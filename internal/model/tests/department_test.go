@@ -128,6 +128,25 @@ func TestDepartment_NewDepartment(t *testing.T) {
 	})
 }
 
+func TestDepartment_NewAndRestore_AvoidAliasing(t *testing.T) {
+	t.Parallel()
+
+	description := "Initial department description"
+
+	created, err := model.NewDepartment(validDeptID(), validClinicID(), "Department", &description)
+	require.NoError(t, err)
+
+	restored, err := model.RestoreDepartment(validDeptID(), validClinicID(), "Department", &description)
+	require.NoError(t, err)
+
+	description = "Mutated outside"
+
+	require.NotNil(t, created.Description)
+	require.NotNil(t, restored.Description)
+	assert.Equal(t, "Initial department description", *created.Description)
+	assert.Equal(t, "Initial department description", *restored.Description)
+}
+
 func TestDepartment_UpdateName(t *testing.T) {
 	t.Parallel()
 

@@ -2,6 +2,8 @@ package model
 
 import (
 	"github.com/google/uuid"
+
+	"github.com/ulbwa/medincident-command-service/pkg/utils"
 )
 
 // Clinic represents a medical clinic within an organization.
@@ -20,8 +22,8 @@ func NewClinic(id, organizationID uuid.UUID, name string, description *string, p
 		ID:              id,
 		OrganizationID:  organizationID,
 		Name:            name,
-		Description:     description,
-		PhysicalAddress: physicalAddress,
+		Description:     utils.PtrClone(description),
+		PhysicalAddress: physicalAddress.copy(),
 	}
 
 	if err := validateClinic(c); err != nil {
@@ -45,8 +47,8 @@ func RestoreClinic(id, organizationID uuid.UUID, name string, description *strin
 		ID:              id,
 		OrganizationID:  organizationID,
 		Name:            name,
-		Description:     description,
-		PhysicalAddress: physicalAddress,
+		Description:     utils.PtrClone(description),
+		PhysicalAddress: physicalAddress.copy(),
 	}
 
 	if err := validateClinic(c); err != nil {
@@ -115,10 +117,10 @@ func (c *Clinic) UpdatePhysicalAddress(address Address) error {
 		return err
 	}
 
-	c.PhysicalAddress = address
+	c.PhysicalAddress = address.copy()
 	c.recordEvent(ClinicPhysicalAddressUpdatedEvent{
 		ID:              c.ID,
-		PhysicalAddress: address,
+		PhysicalAddress: c.PhysicalAddress,
 	})
 	return nil
 }

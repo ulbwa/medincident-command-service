@@ -155,6 +155,32 @@ func TestClinic_NewClinic(t *testing.T) {
 	})
 }
 
+func TestClinic_NewAndRestore_AvoidAliasing(t *testing.T) {
+	t.Parallel()
+
+	description := "Initial clinic description"
+	point := model.GeoPoint{Latitude: 55.7539, Longitude: 37.6208}
+	address := model.Address{Value: "Moscow, Clinic Street, 10", Point: &point}
+
+	created, err := model.NewClinic(validClinicID(), validOrgID(), "Clinic", &description, address)
+	require.NoError(t, err)
+
+	restored, err := model.RestoreClinic(validClinicID(), validOrgID(), "Clinic", &description, address)
+	require.NoError(t, err)
+
+	description = "Mutated outside"
+	point.Longitude = 10
+
+	require.NotNil(t, created.Description)
+	require.NotNil(t, restored.Description)
+	assert.Equal(t, "Initial clinic description", *created.Description)
+	assert.Equal(t, "Initial clinic description", *restored.Description)
+	require.NotNil(t, created.PhysicalAddress.Point)
+	require.NotNil(t, restored.PhysicalAddress.Point)
+	assert.Equal(t, 37.6208, created.PhysicalAddress.Point.Longitude)
+	assert.Equal(t, 37.6208, restored.PhysicalAddress.Point.Longitude)
+}
+
 func TestClinic_UpdateName(t *testing.T) {
 	t.Parallel()
 
