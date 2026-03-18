@@ -18,6 +18,8 @@ var (
 	ErrInvalidAdminRoleSince      = fmt.Errorf("%w: invalid admin since", ErrInvariantViolation)
 	ErrInvalidAdminRoleGranterID  = fmt.Errorf("%w: invalid admin role granter id", ErrInvariantViolation)
 	ErrAdminRoleGrantForbidden    = fmt.Errorf("%w: admin role grant forbidden", ErrInvariantViolation)
+	ErrAdminSelfRevokeForbidden   = fmt.Errorf("%w: admin cannot revoke own role", ErrInvariantViolation)
+	ErrUserAlreadyAdmin           = fmt.Errorf("%w: user is already admin", ErrInvariantViolation)
 	ErrUserCustomNameAlreadyEmpty = fmt.Errorf("%w: custom name is already empty", ErrInvariantViolation)
 )
 
@@ -28,6 +30,9 @@ var (
 	ErrInvalidEmploymentPosition             = fmt.Errorf("%w: invalid employment position", ErrInvariantViolation)
 	ErrInvalidEmploymentDeputy               = fmt.Errorf("%w: invalid deputy", ErrInvariantViolation)
 	ErrInvalidEmploymentVacation             = fmt.Errorf("%w: invalid vacation state", ErrInvariantViolation)
+	ErrInvalidEmploymentAssignedAt           = fmt.Errorf("%w: invalid employment assigned at", ErrInvariantViolation)
+	ErrEmploymentVacationTooFarInFuture      = fmt.Errorf("%w: vacation starts too far in the future", ErrInvariantViolation)
+	ErrEmploymentVacationAlreadyExists       = fmt.Errorf("%w: vacation already exists", ErrInvariantViolation)
 	ErrUserAlreadyEmployed                   = fmt.Errorf("%w: user is already employed", ErrInvariantViolation)
 	ErrUserNotEmployed                       = fmt.Errorf("%w: user is not employed", ErrInvariantViolation)
 	ErrEmploymentNotFound                    = fmt.Errorf("%w: employment not found", ErrInvariantViolation)

@@ -296,7 +296,7 @@ func TestUser_AdminStatus(t *testing.T) {
 
 	// Promote again (idempotent)
 	err = user.GrantAdminRole(actor)
-	require.NoError(t, err)
+	assert.ErrorIs(t, err, errors.ErrUserAlreadyAdmin)
 	assert.NotNil(t, user.AdminRole)
 	assert.False(t, user.AdminRole.GrantedAt.IsZero())
 	assert.Equal(t, actor.ID, user.AdminRole.GrantedBy) // Should still be old ID
@@ -320,6 +320,23 @@ func TestUser_AdminStatus(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, user.AdminRole)
 	assert.Empty(t, user.PopEvents())
+}
+
+func TestUser_RevokeAdminRole_SelfRevokeForbidden(t *testing.T) {
+	t.Parallel()
+
+	adminName, _ := model.NewUserName("Admin", "User", nil)
+	admin, _ := model.NewUser(validUserID, adminName)
+	admin.AdminRole = &model.AdminRole{
+		GrantedAt: time.Now().UTC().Add(-model.AdminMinimumTenure - time.Hour),
+		GrantedBy: int64(2 << 23),
+	}
+	admin.PopEvents()
+
+	err := admin.RevokeAdminRole(admin)
+	assert.ErrorIs(t, err, errors.ErrAdminSelfRevokeForbidden)
+	assert.NotNil(t, admin.AdminRole)
+	assert.Empty(t, admin.PopEvents())
 }
 
 func TestRestoreUser_AdminRoleInvariant(t *testing.T) {

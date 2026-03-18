@@ -80,6 +80,17 @@ func TestEmployment_DeputyAndVacation(t *testing.T) {
 		require.NotNil(t, employment.Vacation)
 		assert.True(t, employment.HasScheduledVacation())
 		assert.False(t, employment.IsOnVacation())
+
+		err = employment.ScheduleVacation(startsAt.Add(24*time.Hour), nil)
+		assert.ErrorIs(t, err, errs.ErrEmploymentVacationAlreadyExists)
+	})
+
+	t.Run("ScheduleVacationTooFarInFutureForbidden", func(t *testing.T) {
+		employment.EndVacation()
+
+		startsAt := time.Now().UTC().AddDate(0, model.EmploymentVacationMaxScheduleAheadMonths, 0).Add(24 * time.Hour)
+		err := employment.ScheduleVacation(startsAt, nil)
+		assert.ErrorIs(t, err, errs.ErrEmploymentVacationTooFarInFuture)
 	})
 }
 
@@ -191,6 +202,20 @@ func TestNewEmployment_CopiesPositionPointer(t *testing.T) {
 
 	assert.Equal(t, "Doctor", *employment.Position)
 	assert.NotSame(t, &position, employment.Position)
+}
+
+func TestNewEmployment_AssignedAtMustNotBeZero(t *testing.T) {
+	t.Parallel()
+
+	_, err := model.NewEmployment(
+		validEmploymentUserID(),
+		validEmploymentOrganizationID(),
+		validEmploymentClinicID(),
+		validEmploymentDepartmentID(),
+		nil,
+		time.Time{},
+	)
+	assert.ErrorIs(t, err, errs.ErrInvalidEmploymentAssignedAt)
 }
 
 func TestRestoreEmployment_CopiesPositionPointer(t *testing.T) {

@@ -226,7 +226,7 @@ func (u *User) GrantAdminRole(actor *User) error {
 	}
 
 	if u.IsAdmin() {
-		return nil // idempotent
+		return errors.ErrUserAlreadyAdmin
 	}
 
 	at := time.Now().UTC()
@@ -247,6 +247,10 @@ func (u *User) GrantAdminRole(actor *User) error {
 func (u *User) RevokeAdminRole(actor *User) error {
 	if actor == nil {
 		return fmt.Errorf("%w: actor is nil", errors.ErrAdminRoleGrantForbidden)
+	}
+
+	if actor.ID == u.ID {
+		return errors.ErrAdminSelfRevokeForbidden
 	}
 
 	if err := actor.CanGrantAdminRole(); err != nil {
