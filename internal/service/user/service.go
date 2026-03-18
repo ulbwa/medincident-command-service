@@ -259,7 +259,7 @@ func (s *Service) ClearCustomName(ctx context.Context, req *ClearCustomNameReque
 			return fmt.Errorf("failed to get user: %w", err)
 		}
 
-		if err := u.ClearCustomName(); err != nil {
+		if err := u.RemoveCustomName(); err != nil {
 			return err
 		}
 

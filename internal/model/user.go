@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/ulbwa/medincident-command-service/internal/common/errors"
+	"github.com/ulbwa/medincident-command-service/pkg/utils"
 )
 
 const AdminMinimumTenure = 72 * time.Hour
@@ -13,6 +16,12 @@ type UserName struct {
 	GivenName  string
 	FamilyName string
 	MiddleName *string
+}
+
+func (u UserName) copy() *UserName {
+	cloned := u
+	cloned.MiddleName = utils.PtrClone(u.MiddleName)
+	return &cloned
 }
 
 func (u UserName) DisplayName() string {
@@ -55,7 +64,7 @@ func NewUserName(givenName, familyName string, middleName *string) (UserName, er
 	name := UserName{
 		GivenName:  givenName,
 		FamilyName: familyName,
-		MiddleName: middleName,
+		MiddleName: utils.PtrClone(middleName),
 	}
 	if err := validateUserName(name); err != nil {
 		return UserName{}, err
@@ -68,40 +77,62 @@ type AdminRole struct {
 	GrantedBy int64
 }
 
+func (r AdminRole) copy() *AdminRole {
+	cloned := r
+	return &cloned
+}
+
 type User struct {
 	Entity
-	ID         int64
-	Name       UserName
-	CustomName *UserName
-	AdminRole  *AdminRole
+	ID          int64
+	Name        UserName
+	CustomName  *UserName
+	AdminRole   *AdminRole
+	Employments []*Employment
 }
 
 func NewUser(id int64, name UserName) (*User, error) {
+	nameCopy := *name.copy()
+
 	u := &User{
-		ID:        id,
-		Name:      name,
-		AdminRole: nil,
+		ID:          id,
+		Name:        nameCopy,
+		AdminRole:   nil,
+		Employments: make([]*Employment, 0),
 	}
-	if err := validateUser(*u); err != nil {
+	if err := validateUser(u); err != nil {
 		return nil, err
 	}
 
 	u.recordEvent(UserCreatedEvent{
 		ID:   u.ID,
-		Name: name,
+		Name: u.Name,
 	})
 
 	return u, nil
 }
 
 func RestoreUser(id int64, name UserName, customName *UserName, adminRole *AdminRole) (*User, error) {
-	u := &User{
-		ID:         id,
-		Name:       name,
-		CustomName: customName,
-		AdminRole:  adminRole,
+	nameCopy := *name.copy()
+
+	var customNameCopy *UserName
+	if customName != nil {
+		customNameCopy = customName.copy()
 	}
-	if err := validateUser(*u); err != nil {
+
+	var adminRoleCopy *AdminRole
+	if adminRole != nil {
+		adminRoleCopy = adminRole.copy()
+	}
+
+	u := &User{
+		ID:          id,
+		Name:        nameCopy,
+		CustomName:  customNameCopy,
+		AdminRole:   adminRoleCopy,
+		Employments: make([]*Employment, 0),
+	}
+	if err := validateUser(u); err != nil {
 		return nil, err
 	}
 	return u, nil
@@ -127,7 +158,7 @@ func (u *User) OverrideName(customName UserName) error {
 		return err
 	}
 
-	u.CustomName = &customName
+	u.CustomName = customName.copy()
 
 	u.recordEvent(UserCustomNameUpdatedEvent{
 		ID:         u.ID,
@@ -137,9 +168,9 @@ func (u *User) OverrideName(customName UserName) error {
 	return nil
 }
 
-func (u *User) ClearCustomName() error {
+func (u *User) RemoveCustomName() error {
 	if u.CustomName == nil {
-		return errors.ErrCustomNameAlreadyEmpty
+		return errors.ErrUserCustomNameAlreadyEmpty
 	}
 
 	u.CustomName = nil
@@ -160,10 +191,10 @@ func (u *User) UpdateName(name UserName) error {
 		return err
 	}
 
-	u.Name = name
+	u.Name = *name.copy()
 	u.recordEvent(UserNameUpdatedEvent{
 		ID:   u.ID,
-		Name: name,
+		Name: u.Name,
 	})
 
 	return nil
@@ -233,6 +264,83 @@ func (u *User) RevokeAdminRole(actor *User) error {
 		ID:        u.ID,
 		RevokedAt: revokedAt,
 		RevokedBy: actor.ID,
+	})
+
+	return nil
+}
+
+func (u *User) findEmploymentIndex(employmentID uuid.UUID) int {
+	for index, employment := range u.Employments {
+		if employment != nil && employment.ID == employmentID {
+			return index
+		}
+	}
+	return -1
+}
+
+func (u *User) IsEmployeeOfOrganization(organizationID uuid.UUID) bool {
+	for _, employment := range u.Employments {
+		if employment != nil && employment.OrganizationID == organizationID {
+			return true
+		}
+	}
+	return false
+}
+
+func (u *User) IsEmployeeOfClinic(clinicID uuid.UUID) bool {
+	for _, employment := range u.Employments {
+		if employment != nil && employment.ClinicID == clinicID {
+			return true
+		}
+	}
+	return false
+}
+
+func (u *User) IsEmployeeOfDepartment(departmentID uuid.UUID) bool {
+	for _, employment := range u.Employments {
+		if employment != nil && employment.DepartmentID == departmentID {
+			return true
+		}
+	}
+	return false
+}
+
+func (u *User) AssignEmployment(organizationID, clinicID, departmentID uuid.UUID, position *string) (uuid.UUID, error) {
+	if u.IsEmployeeOfOrganization(organizationID) {
+		return uuid.Nil, errors.ErrEmploymentAlreadyExistsInOrganization
+	}
+
+	assignedAt := time.Now().UTC()
+
+	employment, err := NewEmployment(u.ID, organizationID, clinicID, departmentID, utils.PtrClone(position), assignedAt)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	u.Employments = append(u.Employments, employment)
+	u.recordEvent(UserEmployedEvent{
+		UserID:         u.ID,
+		EmploymentID:   employment.ID,
+		OrganizationID: organizationID,
+		ClinicID:       clinicID,
+		DepartmentID:   departmentID,
+		Position:       utils.PtrClone(position),
+		AssignedAt:     assignedAt,
+	})
+
+	return employment.ID, nil
+}
+
+func (u *User) Dismiss(employmentID uuid.UUID) error {
+	index := u.findEmploymentIndex(employmentID)
+	if index < 0 {
+		return errors.ErrEmploymentNotFound
+	}
+
+	u.Employments = append(u.Employments[:index], u.Employments[index+1:]...)
+	u.recordEvent(UserDismissedEvent{
+		UserID:       u.ID,
+		EmploymentID: employmentID,
 	})
 
 	return nil
