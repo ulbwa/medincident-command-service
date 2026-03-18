@@ -456,6 +456,38 @@ func TestUser_AssignEmployment_SameOrganizationForbidden(t *testing.T) {
 	require.Len(t, user.PopEvents(), 1)
 }
 
+func TestUser_AssignEmployment_ClonesPositionPointer(t *testing.T) {
+	t.Parallel()
+
+	un, _ := model.NewUserName("Employee", "User", nil)
+	user, _ := model.NewUser(validUserID, un)
+	user.PopEvents()
+
+	organizationID := uuid.MustParse("33333333-3333-7333-8333-333333333333")
+	clinicID := uuid.MustParse("55555555-5555-7555-8555-555555555555")
+	departmentID := uuid.MustParse("11111111-1111-7111-8111-111111111111")
+
+	position := "Doctor"
+	_, err := user.AssignEmployment(organizationID, clinicID, departmentID, &position)
+	require.NoError(t, err)
+
+	position = "Mutated outside"
+
+	require.Len(t, user.Employments, 1)
+	require.NotNil(t, user.Employments[0].Position)
+	assert.Equal(t, "Doctor", *user.Employments[0].Position)
+	assert.NotSame(t, &position, user.Employments[0].Position)
+
+	events := user.PopEvents()
+	require.Len(t, events, 1)
+	employed, ok := events[0].(model.UserEmployedEvent)
+	require.True(t, ok)
+	require.NotNil(t, employed.Position)
+	assert.Equal(t, "Doctor", *employed.Position)
+	assert.NotSame(t, &position, employed.Position)
+	assert.NotSame(t, user.Employments[0].Position, employed.Position)
+}
+
 func TestUser_CanGrantAdminRole(t *testing.T) {
 	t.Parallel()
 

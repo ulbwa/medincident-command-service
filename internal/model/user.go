@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ulbwa/medincident-command-service/internal/common/errors"
+	"github.com/ulbwa/medincident-command-service/pkg/utils"
 )
 
 const AdminMinimumTenure = 72 * time.Hour
@@ -15,6 +16,12 @@ type UserName struct {
 	GivenName  string
 	FamilyName string
 	MiddleName *string
+}
+
+func (u UserName) copy() *UserName {
+	cloned := u
+	cloned.MiddleName = utils.PtrClone(u.MiddleName)
+	return &cloned
 }
 
 func (u UserName) DisplayName() string {
@@ -57,7 +64,7 @@ func NewUserName(givenName, familyName string, middleName *string) (UserName, er
 	name := UserName{
 		GivenName:  givenName,
 		FamilyName: familyName,
-		MiddleName: middleName,
+		MiddleName: utils.PtrClone(middleName),
 	}
 	if err := validateUserName(name); err != nil {
 		return UserName{}, err
@@ -68,6 +75,11 @@ func NewUserName(givenName, familyName string, middleName *string) (UserName, er
 type AdminRole struct {
 	GrantedAt time.Time
 	GrantedBy int64
+}
+
+func (r AdminRole) copy() *AdminRole {
+	cloned := r
+	return &cloned
 }
 
 type User struct {
@@ -99,11 +111,21 @@ func NewUser(id int64, name UserName) (*User, error) {
 }
 
 func RestoreUser(id int64, name UserName, customName *UserName, adminRole *AdminRole) (*User, error) {
+	var customNameCopy *UserName
+	if customName != nil {
+		customNameCopy = customName.copy()
+	}
+
+	var adminRoleCopy *AdminRole
+	if adminRole != nil {
+		adminRoleCopy = adminRole.copy()
+	}
+
 	u := &User{
 		ID:          id,
 		Name:        name,
-		CustomName:  customName,
-		AdminRole:   adminRole,
+		CustomName:  customNameCopy,
+		AdminRole:   adminRoleCopy,
 		Employments: make([]*Employment, 0),
 	}
 	if err := validateUser(u); err != nil {
@@ -132,7 +154,7 @@ func (u *User) OverrideName(customName UserName) error {
 		return err
 	}
 
-	u.CustomName = &customName
+	u.CustomName = customName.copy()
 
 	u.recordEvent(UserCustomNameUpdatedEvent{
 		ID:         u.ID,
@@ -286,7 +308,7 @@ func (u *User) AssignEmployment(organizationID, clinicID, departmentID uuid.UUID
 
 	assignedAt := time.Now().UTC()
 
-	employment, err := NewEmployment(u.ID, organizationID, clinicID, departmentID, position, assignedAt)
+	employment, err := NewEmployment(u.ID, organizationID, clinicID, departmentID, utils.PtrClone(position), assignedAt)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -298,7 +320,7 @@ func (u *User) AssignEmployment(organizationID, clinicID, departmentID uuid.UUID
 		OrganizationID: organizationID,
 		ClinicID:       clinicID,
 		DepartmentID:   departmentID,
-		Position:       position,
+		Position:       utils.PtrClone(position),
 		AssignedAt:     assignedAt,
 	})
 

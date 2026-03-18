@@ -185,6 +185,31 @@ func TestAddress_RestoreAddress(t *testing.T) {
 		_, err := model.RestoreAddress("Moscow, Red Square, 1", &point)
 		assert.ErrorIs(t, err, errors.ErrInvalidLatitude)
 	})
+
+	t.Run("CopyPoint", func(t *testing.T) {
+		t.Parallel()
+		point := model.GeoPoint{Latitude: 55.7539, Longitude: 37.6208}
+		addr, err := model.RestoreAddress("Moscow, Red Square, 1", &point)
+		require.NoError(t, err)
+		require.NotNil(t, addr.Point)
+
+		point.Latitude = 10
+		assert.Equal(t, 55.7539, addr.Point.Latitude)
+		assert.NotSame(t, &point, addr.Point)
+	})
+}
+
+func TestAddress_NewAddress_CopyPoint(t *testing.T) {
+	t.Parallel()
+
+	point := model.GeoPoint{Latitude: 55.7539, Longitude: 37.6208}
+	addr, err := model.NewAddress("Moscow, Red Square, 1", &point)
+	require.NoError(t, err)
+	require.NotNil(t, addr.Point)
+
+	point.Latitude = 10
+	assert.Equal(t, 55.7539, addr.Point.Latitude)
+	assert.NotSame(t, &point, addr.Point)
 }
 
 func TestAddress_Equals(t *testing.T) {

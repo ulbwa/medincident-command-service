@@ -7,10 +7,16 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ulbwa/medincident-command-service/internal/common/errors"
+	"github.com/ulbwa/medincident-command-service/pkg/utils"
 )
 
 type EmploymentDeputy struct {
 	ID int64
+}
+
+func (d EmploymentDeputy) copy() *EmploymentDeputy {
+	cloned := d
+	return &cloned
 }
 
 func RestoreEmploymentDeputy(deputyID int64) (EmploymentDeputy, error) {
@@ -33,11 +39,12 @@ type EmploymentVacation struct {
 	EndsAt   *time.Time
 }
 
-func cloneTimePtr(value *time.Time) *time.Time {
-	if value == nil {
-		return nil
+func (v EmploymentVacation) copy() *EmploymentVacation {
+	cloned := v
+	if v.EndsAt != nil {
+		endsAt := *v.EndsAt
+		cloned.EndsAt = &endsAt
 	}
-	cloned := *value
 	return &cloned
 }
 
@@ -52,7 +59,7 @@ func RestoreEmploymentVacation(startsAt time.Time, endsAt *time.Time) (Employmen
 func newEmploymentVacation(startsAt time.Time, endsAt *time.Time) (EmploymentVacation, error) {
 	v := EmploymentVacation{
 		StartsAt: startsAt,
-		EndsAt:   cloneTimePtr(endsAt),
+		EndsAt:   utils.PtrClone(endsAt),
 	}
 	if err := validateEmploymentVacation(&v); err != nil {
 		return EmploymentVacation{}, err
@@ -101,7 +108,7 @@ func NewEmployment(userID int64, organizationID, clinicID, departmentID uuid.UUI
 		OrganizationID: organizationID,
 		ClinicID:       clinicID,
 		DepartmentID:   departmentID,
-		Position:       position,
+		Position:       utils.PtrClone(position),
 		AssignedAt:     assignedAt,
 		Deputy:         nil,
 		Vacation:       nil,
@@ -114,16 +121,26 @@ func NewEmployment(userID int64, organizationID, clinicID, departmentID uuid.UUI
 }
 
 func RestoreEmployment(id uuid.UUID, userID int64, organizationID, clinicID, departmentID uuid.UUID, position *string, assignedAt time.Time, deputy *EmploymentDeputy, vacation *EmploymentVacation) (*Employment, error) {
+	var deputyCopy *EmploymentDeputy
+	if deputy != nil {
+		deputyCopy = deputy.copy()
+	}
+
+	var vacationCopy *EmploymentVacation
+	if vacation != nil {
+		vacationCopy = vacation.copy()
+	}
+
 	e := &Employment{
 		ID:             id,
 		UserID:         userID,
 		OrganizationID: organizationID,
 		ClinicID:       clinicID,
 		DepartmentID:   departmentID,
-		Position:       position,
+		Position:       utils.PtrClone(position),
 		AssignedAt:     assignedAt,
-		Deputy:         deputy,
-		Vacation:       vacation,
+		Deputy:         deputyCopy,
+		Vacation:       vacationCopy,
 	}
 	if err := validateEmployment(e); err != nil {
 		return nil, err

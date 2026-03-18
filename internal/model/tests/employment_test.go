@@ -134,3 +134,87 @@ func TestRestoreEmploymentVacation_CopyEndsAt(t *testing.T) {
 	endsAt = endsAt.Add(24 * time.Hour)
 	assert.Equal(t, originalEndsAt, *vacation.EndsAt)
 }
+
+func TestRestoreEmployment_CopiesDeputyAndVacation(t *testing.T) {
+	t.Parallel()
+
+	assignedAt := time.Now().UTC()
+	startsAt := assignedAt.Add(24 * time.Hour)
+	endsAt := startsAt.Add(24 * time.Hour)
+
+	deputy := &model.EmploymentDeputy{ID: int64(2 << 23)}
+	vacation := &model.EmploymentVacation{StartsAt: startsAt, EndsAt: &endsAt}
+
+	employment, err := model.RestoreEmployment(
+		uuid.MustParse("11111111-1111-7111-8111-111111111111"),
+		validEmploymentUserID(),
+		validEmploymentOrganizationID(),
+		validEmploymentClinicID(),
+		validEmploymentDepartmentID(),
+		nil,
+		assignedAt,
+		deputy,
+		vacation,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, employment.Deputy)
+	require.NotNil(t, employment.Vacation)
+
+	deputy.ID = int64(3 << 23)
+	endsAt = endsAt.Add(24 * time.Hour)
+
+	assert.Equal(t, int64(2<<23), employment.Deputy.ID)
+	require.NotNil(t, employment.Vacation.EndsAt)
+	assert.Equal(t, startsAt.Add(24*time.Hour), *employment.Vacation.EndsAt)
+	assert.NotSame(t, deputy, employment.Deputy)
+	assert.NotSame(t, vacation, employment.Vacation)
+}
+
+func TestNewEmployment_CopiesPositionPointer(t *testing.T) {
+	t.Parallel()
+
+	assignedAt := time.Now().UTC()
+	position := "Doctor"
+
+	employment, err := model.NewEmployment(
+		validEmploymentUserID(),
+		validEmploymentOrganizationID(),
+		validEmploymentClinicID(),
+		validEmploymentDepartmentID(),
+		&position,
+		assignedAt,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, employment.Position)
+
+	position = "Mutated outside"
+
+	assert.Equal(t, "Doctor", *employment.Position)
+	assert.NotSame(t, &position, employment.Position)
+}
+
+func TestRestoreEmployment_CopiesPositionPointer(t *testing.T) {
+	t.Parallel()
+
+	assignedAt := time.Now().UTC()
+	position := "Doctor"
+
+	employment, err := model.RestoreEmployment(
+		uuid.MustParse("11111111-1111-7111-8111-111111111111"),
+		validEmploymentUserID(),
+		validEmploymentOrganizationID(),
+		validEmploymentClinicID(),
+		validEmploymentDepartmentID(),
+		&position,
+		assignedAt,
+		nil,
+		nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, employment.Position)
+
+	position = "Mutated outside"
+
+	assert.Equal(t, "Doctor", *employment.Position)
+	assert.NotSame(t, &position, employment.Position)
+}

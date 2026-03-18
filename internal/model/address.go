@@ -6,6 +6,11 @@ type GeoPoint struct {
 	Longitude float64
 }
 
+func (g GeoPoint) copy() *GeoPoint {
+	cloned := g
+	return &cloned
+}
+
 // NewGeoPoint creates a validated GeoPoint.
 func NewGeoPoint(latitude, longitude float64) (GeoPoint, error) {
 	point := GeoPoint{Latitude: latitude, Longitude: longitude}
@@ -34,7 +39,12 @@ type Address struct {
 
 // NewAddress creates a validated Address.
 func NewAddress(value string, point *GeoPoint) (Address, error) {
-	address := Address{Value: value, Point: point}
+	var pointCopy *GeoPoint
+	if point != nil {
+		pointCopy = point.copy()
+	}
+
+	address := Address{Value: value, Point: pointCopy}
 	if err := validateAddress(address); err != nil {
 		return Address{}, err
 	}
@@ -44,7 +54,12 @@ func NewAddress(value string, point *GeoPoint) (Address, error) {
 
 // RestoreAddress restores an existing validated Address.
 func RestoreAddress(value string, point *GeoPoint) (Address, error) {
-	address := Address{Value: value, Point: point}
+	var pointCopy *GeoPoint
+	if point != nil {
+		pointCopy = point.copy()
+	}
+
+	address := Address{Value: value, Point: pointCopy}
 	if err := validateAddress(address); err != nil {
 		return Address{}, err
 	}
