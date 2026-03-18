@@ -70,6 +70,9 @@ func validateEmployment(e *Employment) error {
 	if err := validateUserID(e.UserID); err != nil {
 		return err
 	}
+	if e.AssignedAt.IsZero() {
+		return fmt.Errorf("%w: must not be zero", errs.ErrInvalidEmploymentAssignedAt)
+	}
 	if err := validateOrganizationID(e.OrganizationID); err != nil {
 		return err
 	}

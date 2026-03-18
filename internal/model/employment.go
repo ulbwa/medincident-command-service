@@ -80,6 +80,8 @@ type Employment struct {
 	Vacation       *EmploymentVacation
 }
 
+const EmploymentVacationMaxScheduleAheadMonths = 6
+
 func NewEmployment(userID int64, organizationID, clinicID, departmentID uuid.UUID, position *string, assignedAt time.Time) (*Employment, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
@@ -185,18 +187,19 @@ func (e *Employment) GrantVacation(endAt *time.Time) error {
 }
 
 func (e *Employment) ScheduleVacation(startsAt time.Time, endsAt *time.Time) error {
+	now := time.Now().UTC()
+
+	if e.Vacation != nil {
+		return errors.ErrEmploymentVacationAlreadyExists
+	}
+
+	if startsAt.After(now.AddDate(0, EmploymentVacationMaxScheduleAheadMonths, 0)) {
+		return fmt.Errorf("%w: cannot schedule vacation more than %d months ahead", errors.ErrEmploymentVacationTooFarInFuture, EmploymentVacationMaxScheduleAheadMonths)
+	}
+
 	vacation, err := NewEmploymentVacation(startsAt, endsAt)
 	if err != nil {
 		return err
-	}
-
-	if e.Vacation != nil && e.Vacation.StartsAt.Equal(vacation.StartsAt) {
-		if e.Vacation.EndsAt == nil && vacation.EndsAt == nil {
-			return nil
-		}
-		if e.Vacation.EndsAt != nil && vacation.EndsAt != nil && e.Vacation.EndsAt.Equal(*vacation.EndsAt) {
-			return nil
-		}
 	}
 
 	e.Vacation = &vacation
