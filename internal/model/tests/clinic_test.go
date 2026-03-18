@@ -220,6 +220,15 @@ func TestClinic_UpdatePhysicalAddress(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, currentAddr, clinic.PhysicalAddress)
 	})
+
+	t.Run("InvalidAddress", func(t *testing.T) {
+		invalidAddr := model.Address{Value: "bad", Point: nil}
+		previousAddr := clinic.PhysicalAddress
+
+		err := clinic.UpdatePhysicalAddress(invalidAddr)
+		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+		assert.Equal(t, previousAddr, clinic.PhysicalAddress)
+	})
 }
 
 func TestClinic_RestoreClinic(t *testing.T) {
