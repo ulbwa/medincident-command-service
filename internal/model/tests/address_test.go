@@ -67,6 +67,30 @@ func TestGeoPoint_NewGeoPoint(t *testing.T) {
 	})
 }
 
+func TestGeoPoint_RestoreGeoPoint(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ValidCoordinates", func(t *testing.T) {
+		t.Parallel()
+		gp, err := model.RestoreGeoPoint(55.7558, 37.6173)
+		require.NoError(t, err)
+		assert.Equal(t, 55.7558, gp.Latitude)
+		assert.Equal(t, 37.6173, gp.Longitude)
+	})
+
+	t.Run("InvalidLatitude", func(t *testing.T) {
+		t.Parallel()
+		_, err := model.RestoreGeoPoint(-91, 0)
+		assert.ErrorIs(t, err, errors.ErrInvalidLatitude)
+	})
+
+	t.Run("InvalidLongitude", func(t *testing.T) {
+		t.Parallel()
+		_, err := model.RestoreGeoPoint(0, 181)
+		assert.ErrorIs(t, err, errors.ErrInvalidLongitude)
+	})
+}
+
 func TestGeoPoint_Equals(t *testing.T) {
 	t.Parallel()
 
@@ -128,6 +152,38 @@ func TestAddress_NewAddress(t *testing.T) {
 		t.Parallel()
 		_, err := model.NewAddress("Moscow, Red Square, 1 ", nil)
 		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+	})
+
+	t.Run("InvalidPoint", func(t *testing.T) {
+		t.Parallel()
+		point := model.GeoPoint{Latitude: 100, Longitude: 37.6208}
+		_, err := model.NewAddress("Moscow, Red Square, 1", &point)
+		assert.ErrorIs(t, err, errors.ErrInvalidLatitude)
+	})
+}
+
+func TestAddress_RestoreAddress(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ValidAddressWithoutPoint", func(t *testing.T) {
+		t.Parallel()
+		addr, err := model.RestoreAddress("Moscow, Red Square, 1", nil)
+		require.NoError(t, err)
+		assert.Equal(t, "Moscow, Red Square, 1", addr.Value)
+		assert.Nil(t, addr.Point)
+	})
+
+	t.Run("InvalidAddressValue", func(t *testing.T) {
+		t.Parallel()
+		_, err := model.RestoreAddress("", nil)
+		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+	})
+
+	t.Run("InvalidPoint", func(t *testing.T) {
+		t.Parallel()
+		point := model.GeoPoint{Latitude: 100, Longitude: 37.6208}
+		_, err := model.RestoreAddress("Moscow, Red Square, 1", &point)
+		assert.ErrorIs(t, err, errors.ErrInvalidLatitude)
 	})
 }
 

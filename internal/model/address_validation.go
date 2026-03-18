@@ -29,3 +29,29 @@ func validateAddressValue(value string) error {
 
 	return nil
 }
+
+func validateGeoPoint(point GeoPoint) error {
+	if point.Latitude < -90 || point.Latitude > 90 {
+		return fmt.Errorf("%w: must be between -90 and 90", errs.ErrInvalidLatitude)
+	}
+
+	if point.Longitude < -180 || point.Longitude > 180 {
+		return fmt.Errorf("%w: must be between -180 and 180", errs.ErrInvalidLongitude)
+	}
+
+	return nil
+}
+
+func validateAddress(address Address) error {
+	if err := validateAddressValue(address.Value); err != nil {
+		return err
+	}
+
+	if address.Point != nil {
+		if err := validateGeoPoint(*address.Point); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

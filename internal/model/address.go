@@ -1,11 +1,5 @@
 package model
 
-import (
-	"fmt"
-
-	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
-)
-
 // GeoPoint represents geographic coordinates (latitude and longitude).
 type GeoPoint struct {
 	Latitude  float64
@@ -14,13 +8,17 @@ type GeoPoint struct {
 
 // NewGeoPoint creates a validated GeoPoint.
 func NewGeoPoint(latitude, longitude float64) (GeoPoint, error) {
-	if latitude < -90 || latitude > 90 {
-		return GeoPoint{}, fmt.Errorf("%w: must be between -90 and 90", errs.ErrInvalidLatitude)
+	point := GeoPoint{Latitude: latitude, Longitude: longitude}
+	if err := validateGeoPoint(point); err != nil {
+		return GeoPoint{}, err
 	}
-	if longitude < -180 || longitude > 180 {
-		return GeoPoint{}, fmt.Errorf("%w: must be between -180 and 180", errs.ErrInvalidLongitude)
-	}
-	return GeoPoint{Latitude: latitude, Longitude: longitude}, nil
+
+	return point, nil
+}
+
+// RestoreGeoPoint restores an existing validated GeoPoint.
+func RestoreGeoPoint(latitude, longitude float64) (GeoPoint, error) {
+	return NewGeoPoint(latitude, longitude)
 }
 
 // Equals compares two GeoPoint instances.
@@ -36,10 +34,22 @@ type Address struct {
 
 // NewAddress creates a validated Address.
 func NewAddress(value string, point *GeoPoint) (Address, error) {
-	if err := validateAddressValue(value); err != nil {
+	address := Address{Value: value, Point: point}
+	if err := validateAddress(address); err != nil {
 		return Address{}, err
 	}
-	return Address{Value: value, Point: point}, nil
+
+	return address, nil
+}
+
+// RestoreAddress restores an existing validated Address.
+func RestoreAddress(value string, point *GeoPoint) (Address, error) {
+	address := Address{Value: value, Point: point}
+	if err := validateAddress(address); err != nil {
+		return Address{}, err
+	}
+
+	return address, nil
 }
 
 // Equals compares two Address instances.
