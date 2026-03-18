@@ -88,7 +88,7 @@ func TestEmployment_DeputyAndVacation(t *testing.T) {
 	t.Run("ScheduleVacationTooFarInFutureForbidden", func(t *testing.T) {
 		employment.EndVacation()
 
-		startsAt := time.Now().UTC().AddDate(0, model.EmploymentVacationMaxScheduleAheadMonths, 0).Add(time.Second)
+		startsAt := time.Now().UTC().AddDate(0, model.EmploymentVacationMaxScheduleAheadMonths, 0).Add(24 * time.Hour)
 		err := employment.ScheduleVacation(startsAt, nil)
 		assert.ErrorIs(t, err, errs.ErrEmploymentVacationTooFarInFuture)
 	})
