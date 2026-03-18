@@ -81,5 +81,9 @@ func validateClinic(c *Clinic) error {
 		}
 	}
 
+	if err := validateAddress(c.PhysicalAddress); err != nil {
+		return err
+	}
+
 	return nil
 }

@@ -143,6 +143,16 @@ func TestClinic_NewClinic(t *testing.T) {
 		_, err := model.NewClinic(id, orgID, "Clinic", &longDesc, addr)
 		assert.ErrorIs(t, err, errors.ErrInvalidClinicDescription)
 	})
+
+	t.Run("InvalidPhysicalAddress", func(t *testing.T) {
+		t.Parallel()
+		id := validClinicID()
+		orgID := validOrgID()
+		invalidAddr := model.Address{Value: "bad", Point: nil}
+
+		_, err := model.NewClinic(id, orgID, "Clinic", nil, invalidAddr)
+		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+	})
 }
 
 func TestClinic_UpdateName(t *testing.T) {
@@ -246,4 +256,12 @@ func TestClinic_RestoreClinic(t *testing.T) {
 	assert.Equal(t, "RestoredClinic", clinic.Name)
 	assert.NotNil(t, clinic.Description)
 	assert.Equal(t, desc, *clinic.Description)
+
+	t.Run("InvalidPhysicalAddress", func(t *testing.T) {
+		t.Parallel()
+		invalidAddr := model.Address{Value: "bad", Point: nil}
+
+		_, err := model.RestoreClinic(validClinicID(), validOrgID(), "RestoredClinic", nil, invalidAddr)
+		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+	})
 }
