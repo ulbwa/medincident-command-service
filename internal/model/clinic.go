@@ -111,6 +111,10 @@ func (c *Clinic) UpdatePhysicalAddress(address Address) error {
 		return nil
 	}
 
+	if err := validateAddress(address); err != nil {
+		return err
+	}
+
 	c.PhysicalAddress = address
 	c.recordEvent(ClinicPhysicalAddressUpdatedEvent{
 		ID:              c.ID,

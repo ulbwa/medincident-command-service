@@ -202,6 +202,15 @@ func TestOrganization_UpdateLegalAddress(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, currentAddr, org.LegalAddress)
 	})
+
+	t.Run("InvalidAddress", func(t *testing.T) {
+		invalidAddr := model.Address{Value: "bad", Point: nil}
+		previousAddr := org.LegalAddress
+
+		err := org.UpdateLegalAddress(invalidAddr)
+		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+		assert.Equal(t, previousAddr, org.LegalAddress)
+	})
 }
 
 func TestOrganization_RestoreOrganization(t *testing.T) {

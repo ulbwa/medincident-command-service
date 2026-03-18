@@ -107,6 +107,10 @@ func (o *Organization) UpdateLegalAddress(address Address) error {
 		return nil
 	}
 
+	if err := validateAddress(address); err != nil {
+		return err
+	}
+
 	o.LegalAddress = address
 	o.recordEvent(OrganizationLegalAddressUpdatedEvent{
 		ID:           o.ID,
