@@ -2,35 +2,50 @@ package model
 
 import (
 	"fmt"
+	"strings"
 	"unicode/utf8"
 
 	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
 )
 
+const (
+	minUserNameLength = 1
+	maxUserNameLength = 100
+)
+
 func validateUserName(name UserName) error {
-	givenNameLen := utf8.RuneCountInString(name.GivenName)
-	if givenNameLen < 1 {
-		return fmt.Errorf("%w: too short (min 1)", errs.ErrInvalidGivenName)
+	if strings.TrimSpace(name.GivenName) != name.GivenName {
+		return fmt.Errorf("%w: must not have leading or trailing whitespace", errs.ErrInvalidGivenName)
 	}
-	if givenNameLen > 100 {
-		return fmt.Errorf("%w: too long (max 100)", errs.ErrInvalidGivenName)
+	givenNameLen := utf8.RuneCountInString(name.GivenName)
+	if givenNameLen < minUserNameLength {
+		return fmt.Errorf("%w: too short (min %d)", errs.ErrInvalidGivenName, minUserNameLength)
+	}
+	if givenNameLen > maxUserNameLength {
+		return fmt.Errorf("%w: too long (max %d)", errs.ErrInvalidGivenName, maxUserNameLength)
 	}
 
-	familyNameLen := utf8.RuneCountInString(name.FamilyName)
-	if familyNameLen < 1 {
-		return fmt.Errorf("%w: too short (min 1)", errs.ErrInvalidFamilyName)
+	if strings.TrimSpace(name.FamilyName) != name.FamilyName {
+		return fmt.Errorf("%w: must not have leading or trailing whitespace", errs.ErrInvalidFamilyName)
 	}
-	if familyNameLen > 100 {
-		return fmt.Errorf("%w: too long (max 100)", errs.ErrInvalidFamilyName)
+	familyNameLen := utf8.RuneCountInString(name.FamilyName)
+	if familyNameLen < minUserNameLength {
+		return fmt.Errorf("%w: too short (min %d)", errs.ErrInvalidFamilyName, minUserNameLength)
+	}
+	if familyNameLen > maxUserNameLength {
+		return fmt.Errorf("%w: too long (max %d)", errs.ErrInvalidFamilyName, maxUserNameLength)
 	}
 
 	if name.MiddleName != nil {
-		middleNameLen := utf8.RuneCountInString(*name.MiddleName)
-		if middleNameLen < 1 {
-			return fmt.Errorf("%w: too short (min 1)", errs.ErrInvalidMiddleName)
+		if strings.TrimSpace(*name.MiddleName) != *name.MiddleName {
+			return fmt.Errorf("%w: must not have leading or trailing whitespace", errs.ErrInvalidMiddleName)
 		}
-		if middleNameLen > 100 {
-			return fmt.Errorf("%w: too long (max 100)", errs.ErrInvalidMiddleName)
+		middleNameLen := utf8.RuneCountInString(*name.MiddleName)
+		if middleNameLen < minUserNameLength {
+			return fmt.Errorf("%w: too short (min %d)", errs.ErrInvalidMiddleName, minUserNameLength)
+		}
+		if middleNameLen > maxUserNameLength {
+			return fmt.Errorf("%w: too long (max %d)", errs.ErrInvalidMiddleName, maxUserNameLength)
 		}
 	}
 	return nil
@@ -48,7 +63,7 @@ func validateUserID(id int64) error {
 	return nil
 }
 
-func validateUser(u User) error {
+func validateUser(u *User) error {
 	if err := validateUserID(u.ID); err != nil {
 		return err
 	}
@@ -66,6 +81,20 @@ func validateUser(u User) error {
 		}
 		if err := validateUserID(u.AdminRole.GrantedBy); err != nil {
 			return fmt.Errorf("invalid admin role granter id: %w", err)
+		}
+	}
+	for _, employment := range u.Employments {
+		if employment == nil {
+			continue
+		}
+		if err := validateEmployment(employment); err != nil {
+			return err
+		}
+		if employment.UserID != u.ID {
+			return fmt.Errorf("invalid employment user id: expected %d, got %d", u.ID, employment.UserID)
+		}
+		if employment.Deputy != nil && employment.Deputy.ID == u.ID {
+			return fmt.Errorf("%w: user cannot be their own deputy", errs.ErrInvalidEmploymentDeputy)
 		}
 	}
 	return nil

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/ulbwa/medincident-command-service/internal/common/errors"
 )
 
@@ -70,19 +72,21 @@ type AdminRole struct {
 
 type User struct {
 	Entity
-	ID         int64
-	Name       UserName
-	CustomName *UserName
-	AdminRole  *AdminRole
+	ID          int64
+	Name        UserName
+	CustomName  *UserName
+	AdminRole   *AdminRole
+	Employments []*Employment
 }
 
 func NewUser(id int64, name UserName) (*User, error) {
 	u := &User{
-		ID:        id,
-		Name:      name,
-		AdminRole: nil,
+		ID:          id,
+		Name:        name,
+		AdminRole:   nil,
+		Employments: make([]*Employment, 0),
 	}
-	if err := validateUser(*u); err != nil {
+	if err := validateUser(u); err != nil {
 		return nil, err
 	}
 
@@ -96,12 +100,13 @@ func NewUser(id int64, name UserName) (*User, error) {
 
 func RestoreUser(id int64, name UserName, customName *UserName, adminRole *AdminRole) (*User, error) {
 	u := &User{
-		ID:         id,
-		Name:       name,
-		CustomName: customName,
-		AdminRole:  adminRole,
+		ID:          id,
+		Name:        name,
+		CustomName:  customName,
+		AdminRole:   adminRole,
+		Employments: make([]*Employment, 0),
 	}
-	if err := validateUser(*u); err != nil {
+	if err := validateUser(u); err != nil {
 		return nil, err
 	}
 	return u, nil
@@ -137,7 +142,7 @@ func (u *User) OverrideName(customName UserName) error {
 	return nil
 }
 
-func (u *User) ClearCustomName() error {
+func (u *User) RemoveCustomName() error {
 	if u.CustomName == nil {
 		return errors.ErrCustomNameAlreadyEmpty
 	}
@@ -233,6 +238,83 @@ func (u *User) RevokeAdminRole(actor *User) error {
 		ID:        u.ID,
 		RevokedAt: revokedAt,
 		RevokedBy: actor.ID,
+	})
+
+	return nil
+}
+
+func (u *User) findEmploymentIndex(employmentID uuid.UUID) int {
+	for index, employment := range u.Employments {
+		if employment != nil && employment.ID == employmentID {
+			return index
+		}
+	}
+	return -1
+}
+
+func (u *User) IsEmployeeOfOrganization(organizationID uuid.UUID) bool {
+	for _, employment := range u.Employments {
+		if employment != nil && employment.OrganizationID == organizationID {
+			return true
+		}
+	}
+	return false
+}
+
+func (u *User) IsEmployeeOfClinic(clinicID uuid.UUID) bool {
+	for _, employment := range u.Employments {
+		if employment != nil && employment.ClinicID == clinicID {
+			return true
+		}
+	}
+	return false
+}
+
+func (u *User) IsEmployeeOfDepartment(departmentID uuid.UUID) bool {
+	for _, employment := range u.Employments {
+		if employment != nil && employment.DepartmentID == departmentID {
+			return true
+		}
+	}
+	return false
+}
+
+func (u *User) AssignEmployment(organizationID, clinicID, departmentID uuid.UUID, position *string) (uuid.UUID, error) {
+	if u.IsEmployeeOfOrganization(organizationID) {
+		return uuid.Nil, errors.ErrEmploymentAlreadyExistsInOrganization
+	}
+
+	assignedAt := time.Now().UTC()
+
+	employment, err := NewEmployment(u.ID, organizationID, clinicID, departmentID, position, assignedAt)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	u.Employments = append(u.Employments, employment)
+	u.recordEvent(UserEmployedEvent{
+		UserID:         u.ID,
+		EmploymentID:   employment.ID,
+		OrganizationID: organizationID,
+		ClinicID:       clinicID,
+		DepartmentID:   departmentID,
+		Position:       position,
+		AssignedAt:     assignedAt,
+	})
+
+	return employment.ID, nil
+}
+
+func (u *User) Dismiss(employmentID uuid.UUID) error {
+	index := u.findEmploymentIndex(employmentID)
+	if index < 0 {
+		return errors.ErrEmploymentNotFound
+	}
+
+	u.Employments = append(u.Employments[:index], u.Employments[index+1:]...)
+	u.recordEvent(UserDismissedEvent{
+		UserID:       u.ID,
+		EmploymentID: employmentID,
 	})
 
 	return nil

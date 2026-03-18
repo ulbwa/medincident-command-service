@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -139,14 +140,14 @@ func TestUser_CreationAndEvents(t *testing.T) {
 	assert.ErrorIs(t, err, errors.ErrInvalidUserID)
 }
 
-func TestUser_ClearCustomName(t *testing.T) {
+func TestUser_RemoveCustomName(t *testing.T) {
 	t.Parallel()
 	un, _ := model.NewUserName("Base", "Name", nil)
 	user, _ := model.NewUser(validUserID, un)
 	user.PopEvents() // Clear initial event
 
 	// Error if already clear
-	err := user.ClearCustomName()
+	err := user.RemoveCustomName()
 	assert.ErrorIs(t, err, errors.ErrCustomNameAlreadyEmpty)
 
 	// Add custom name directly for test
@@ -155,7 +156,7 @@ func TestUser_ClearCustomName(t *testing.T) {
 	user.PopEvents()
 
 	// Clear successfully
-	err = user.ClearCustomName()
+	err = user.RemoveCustomName()
 	require.NoError(t, err)
 	assert.Nil(t, user.CustomName)
 
@@ -328,6 +329,131 @@ func TestRestoreUser_AdminRoleInvariant(t *testing.T) {
 		assert.Equal(t, now, user.AdminRole.GrantedAt)
 		assert.Equal(t, granterID, user.AdminRole.GrantedBy)
 	})
+}
+
+func TestUser_EmploymentAsEntity_MultipleEmployments(t *testing.T) {
+	t.Parallel()
+
+	un, _ := model.NewUserName("Employee", "User", nil)
+	user, _ := model.NewUser(validUserID, un)
+	user.PopEvents()
+
+	organizationID := uuid.MustParse("33333333-3333-7333-8333-333333333333")
+	secondOrganizationID := uuid.MustParse("44444444-4444-7444-8444-444444444444")
+	clinicID := uuid.MustParse("55555555-5555-7555-8555-555555555555")
+	secondClinicID := uuid.MustParse("66666666-6666-7666-8666-666666666666")
+	departmentID := uuid.MustParse("11111111-1111-7111-8111-111111111111")
+	secondDepartmentID := uuid.MustParse("22222222-2222-7222-8222-222222222222")
+
+	firstEmploymentID, err := user.AssignEmployment(organizationID, clinicID, departmentID, nil)
+	require.NoError(t, err)
+	require.Len(t, user.Employments, 1)
+	assert.Equal(t, departmentID, user.Employments[0].DepartmentID)
+	assert.Equal(t, clinicID, user.Employments[0].ClinicID)
+	assert.Equal(t, organizationID, user.Employments[0].OrganizationID)
+	assert.Equal(t, firstEmploymentID, user.Employments[0].ID)
+	assert.False(t, user.Employments[0].AssignedAt.IsZero())
+	assert.True(t, user.IsEmployeeOfOrganization(organizationID))
+	assert.True(t, user.IsEmployeeOfClinic(clinicID))
+	assert.True(t, user.IsEmployeeOfDepartment(departmentID))
+
+	secondEmploymentID, err := user.AssignEmployment(secondOrganizationID, secondClinicID, secondDepartmentID, ptr("Second role"))
+	require.NoError(t, err)
+	require.Len(t, user.Employments, 2)
+	assert.Equal(t, secondEmploymentID, user.Employments[1].ID)
+	assert.True(t, user.IsEmployeeOfOrganization(secondOrganizationID))
+	assert.True(t, user.IsEmployeeOfClinic(secondClinicID))
+	assert.True(t, user.IsEmployeeOfDepartment(secondDepartmentID))
+
+	events := user.PopEvents()
+	require.Len(t, events, 2)
+	firstEmployed, ok := events[0].(model.UserEmployedEvent)
+	require.True(t, ok)
+	assert.Equal(t, firstEmploymentID, firstEmployed.EmploymentID)
+	assert.Equal(t, organizationID, firstEmployed.OrganizationID)
+	assert.Equal(t, clinicID, firstEmployed.ClinicID)
+	assert.Equal(t, departmentID, firstEmployed.DepartmentID)
+	assert.False(t, firstEmployed.AssignedAt.IsZero())
+	secondEmployed, ok := events[1].(model.UserEmployedEvent)
+	require.True(t, ok)
+	assert.Equal(t, secondEmploymentID, secondEmployed.EmploymentID)
+	assert.Equal(t, secondOrganizationID, secondEmployed.OrganizationID)
+	assert.Equal(t, secondClinicID, secondEmployed.ClinicID)
+	assert.Equal(t, secondDepartmentID, secondEmployed.DepartmentID)
+	assert.False(t, secondEmployed.AssignedAt.IsZero())
+
+	firstEmployment := user.Employments[0]
+	firstEmployment.PopEvents()
+
+	err = firstEmployment.AssignDeputy(int64(2 << 23))
+	require.NoError(t, err)
+	assert.True(t, user.Employments[0].HasDeputy())
+
+	events = firstEmployment.PopEvents()
+	require.Len(t, events, 1)
+	deputyAssigned, ok := events[0].(model.EmploymentDeputyAssignedEvent)
+	require.True(t, ok)
+	assert.Equal(t, firstEmploymentID, deputyAssigned.EmploymentID)
+	assert.Equal(t, int64(2<<23), deputyAssigned.DeputyID)
+
+	err = firstEmployment.AssignDeputy(validUserID)
+	assert.ErrorIs(t, err, errors.ErrInvalidEmploymentDeputy)
+
+	startsAt := time.Now().UTC().Add(24 * time.Hour)
+	endsAt := startsAt.Add(24 * time.Hour)
+	err = firstEmployment.ScheduleVacation(startsAt, &endsAt)
+	require.NoError(t, err)
+	assert.True(t, user.Employments[0].HasScheduledVacation())
+
+	events = firstEmployment.PopEvents()
+	require.Len(t, events, 1)
+	vacationScheduled, ok := events[0].(model.EmploymentVacationScheduledEvent)
+	require.True(t, ok)
+	assert.Equal(t, firstEmploymentID, vacationScheduled.EmploymentID)
+
+	firstEmployment.EndVacation()
+	assert.Nil(t, user.Employments[0].Vacation)
+
+	events = firstEmployment.PopEvents()
+	require.Len(t, events, 1)
+	vacationEnded, ok := events[0].(model.EmploymentVacationEndedEvent)
+	require.True(t, ok)
+	assert.Equal(t, firstEmploymentID, vacationEnded.EmploymentID)
+
+	err = user.Dismiss(firstEmploymentID)
+	require.NoError(t, err)
+	require.Len(t, user.Employments, 1)
+	assert.Equal(t, secondEmploymentID, user.Employments[0].ID)
+	assert.False(t, user.IsEmployeeOfOrganization(organizationID))
+	assert.False(t, user.IsEmployeeOfClinic(clinicID))
+	assert.False(t, user.IsEmployeeOfDepartment(departmentID))
+
+	events = user.PopEvents()
+	require.Len(t, events, 1)
+	dismissed, ok := events[0].(model.UserDismissedEvent)
+	require.True(t, ok)
+	assert.Equal(t, firstEmploymentID, dismissed.EmploymentID)
+}
+
+func TestUser_AssignEmployment_SameOrganizationForbidden(t *testing.T) {
+	t.Parallel()
+
+	un, _ := model.NewUserName("Employee", "User", nil)
+	user, _ := model.NewUser(validUserID, un)
+	user.PopEvents()
+
+	organizationID := uuid.MustParse("33333333-3333-7333-8333-333333333333")
+	clinicID := uuid.MustParse("55555555-5555-7555-8555-555555555555")
+	firstDepartmentID := uuid.MustParse("11111111-1111-7111-8111-111111111111")
+	secondDepartmentID := uuid.MustParse("22222222-2222-7222-8222-222222222222")
+
+	_, err := user.AssignEmployment(organizationID, clinicID, firstDepartmentID, nil)
+	require.NoError(t, err)
+
+	_, err = user.AssignEmployment(organizationID, clinicID, secondDepartmentID, ptr("Second role"))
+	assert.ErrorIs(t, err, errors.ErrEmploymentAlreadyExistsInOrganization)
+	require.Len(t, user.Employments, 1)
+	require.Len(t, user.PopEvents(), 1)
 }
 
 func TestUser_CanGrantAdminRole(t *testing.T) {

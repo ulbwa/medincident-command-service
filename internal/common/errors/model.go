@@ -21,9 +21,14 @@ var (
 
 // Employment errors
 var (
-	ErrInvalidEmploymentPosition = fmt.Errorf("%w: invalid employment position", ErrInvariantViolation)
-	ErrInvalidEmploymentDeputy   = fmt.Errorf("%w: invalid deputy", ErrInvariantViolation)
-	ErrInvalidEmploymentVacation = fmt.Errorf("%w: invalid vacation state", ErrInvariantViolation)
+	ErrInvalidEmploymentID                   = fmt.Errorf("%w: invalid employment id", ErrInvariantViolation)
+	ErrInvalidEmploymentPosition             = fmt.Errorf("%w: invalid employment position", ErrInvariantViolation)
+	ErrInvalidEmploymentDeputy               = fmt.Errorf("%w: invalid deputy", ErrInvariantViolation)
+	ErrInvalidEmploymentVacation             = fmt.Errorf("%w: invalid vacation state", ErrInvariantViolation)
+	ErrUserAlreadyEmployed                   = fmt.Errorf("%w: user is already employed", ErrInvariantViolation)
+	ErrUserNotEmployed                       = fmt.Errorf("%w: user is not employed", ErrInvariantViolation)
+	ErrEmploymentNotFound                    = fmt.Errorf("%w: employment not found", ErrInvariantViolation)
+	ErrEmploymentAlreadyExistsInOrganization = fmt.Errorf("%w: employment already exists in organization", ErrInvariantViolation)
 )
 
 // Clinic errors
@@ -33,4 +38,27 @@ var ErrInvalidClinicID = fmt.Errorf("%w: invalid clinic id", ErrInvariantViolati
 var ErrInvalidDepartmentID = fmt.Errorf("%w: invalid department id", ErrInvariantViolation)
 
 // Organization errors
-var ErrInvalidOrganizationID = fmt.Errorf("%w: invalid organization id", ErrInvariantViolation)
+var (
+	ErrInvalidOrganizationID          = fmt.Errorf("%w: invalid organization id", ErrInvariantViolation)
+	ErrInvalidOrganizationName        = fmt.Errorf("%w: invalid organization name", ErrInvariantViolation)
+	ErrInvalidOrganizationDescription = fmt.Errorf("%w: invalid organization description", ErrInvariantViolation)
+)
+
+// Clinic errors (extended)
+var (
+	ErrInvalidClinicName        = fmt.Errorf("%w: invalid clinic name", ErrInvariantViolation)
+	ErrInvalidClinicDescription = fmt.Errorf("%w: invalid clinic description", ErrInvariantViolation)
+)
+
+// Department errors (extended)
+var (
+	ErrInvalidDepartmentName        = fmt.Errorf("%w: invalid department name", ErrInvariantViolation)
+	ErrInvalidDepartmentDescription = fmt.Errorf("%w: invalid department description", ErrInvariantViolation)
+)
+
+// Address errors
+var (
+	ErrInvalidAddressValue = fmt.Errorf("%w: invalid address value", ErrInvariantViolation)
+	ErrInvalidLatitude     = fmt.Errorf("%w: invalid latitude", ErrInvariantViolation)
+	ErrInvalidLongitude    = fmt.Errorf("%w: invalid longitude", ErrInvariantViolation)
+)
