@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -34,7 +35,7 @@ func validateEmploymentPosition(position *string) error {
 
 func validateDeputyID(deputyID int64) error {
 	if err := validateUserID(deputyID); err != nil {
-		return fmt.Errorf("%w: invalid deputy id", errs.ErrInvalidEmploymentDeputy)
+		return errors.Join(errs.ErrInvalidEmploymentDeputy, err)
 	}
 	return nil
 }
