@@ -96,20 +96,20 @@ func TestNewUserName_Validation(t *testing.T) {
 
 	// Invalid Given Name (Empty)
 	_, err = model.NewUserName("", "Ivanov", nil)
-	assert.ErrorIs(t, err, errors.ErrInvalidGivenName)
+	assert.ErrorIs(t, err, errors.ErrInvalidUserGivenName)
 
 	// Invalid Family Name (Empty)
 	_, err = model.NewUserName("Ivan", "", nil)
-	assert.ErrorIs(t, err, errors.ErrInvalidFamilyName)
+	assert.ErrorIs(t, err, errors.ErrInvalidUserFamilyName)
 
 	// Invalid Middle Name (Empty str pointer)
 	_, err = model.NewUserName("Ivan", "Ivanov", ptr(""))
-	assert.ErrorIs(t, err, errors.ErrInvalidMiddleName)
+	assert.ErrorIs(t, err, errors.ErrInvalidUserMiddleName)
 
 	// Too long names (> 100)
 	longName := string(make([]byte, 101))
 	_, err = model.NewUserName(longName, "Ivanov", nil)
-	assert.ErrorIs(t, err, errors.ErrInvalidGivenName)
+	assert.ErrorIs(t, err, errors.ErrInvalidUserGivenName)
 }
 
 func TestUser_CreationAndEvents(t *testing.T) {
@@ -148,7 +148,7 @@ func TestUser_RemoveCustomName(t *testing.T) {
 
 	// Error if already clear
 	err := user.RemoveCustomName()
-	assert.ErrorIs(t, err, errors.ErrCustomNameAlreadyEmpty)
+	assert.ErrorIs(t, err, errors.ErrUserCustomNameAlreadyEmpty)
 
 	// Add custom name directly for test
 	customName, _ := model.NewUserName("Custom", "Name", nil)
@@ -194,7 +194,7 @@ func TestUser_OverrideName(t *testing.T) {
 	// Invalid name check
 	invalidCustomName := model.UserName{GivenName: "", FamilyName: "F"}
 	err = user.OverrideName(invalidCustomName)
-	assert.ErrorIs(t, err, errors.ErrInvalidGivenName)
+	assert.ErrorIs(t, err, errors.ErrInvalidUserGivenName)
 }
 
 func TestUser_UpdateName(t *testing.T) {
@@ -221,7 +221,7 @@ func TestUser_UpdateName(t *testing.T) {
 	// Validation
 	invalidName := model.UserName{GivenName: "B", FamilyName: ""}
 	err = user.UpdateName(invalidName)
-	assert.ErrorIs(t, err, errors.ErrInvalidFamilyName)
+	assert.ErrorIs(t, err, errors.ErrInvalidUserFamilyName)
 }
 
 func TestUser_AdminStatus(t *testing.T) {
@@ -312,7 +312,7 @@ func TestRestoreUser_AdminRoleInvariant(t *testing.T) {
 			GrantedBy: granterID,
 		}
 		_, err := model.RestoreUser(validUserID, un, nil, adminRole)
-		assert.ErrorIs(t, err, errors.ErrInvalidAdminSince)
+		assert.ErrorIs(t, err, errors.ErrInvalidAdminRoleSince)
 	})
 
 	t.Run("ValidAdminRole", func(t *testing.T) {

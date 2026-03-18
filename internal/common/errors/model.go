@@ -10,18 +10,20 @@ var ErrInvariantViolation = errors.New("invariant violation")
 
 // User & Identity errors
 var (
-	ErrInvalidUserID           = fmt.Errorf("%w: invalid user id", ErrInvariantViolation)
-	ErrInvalidGivenName        = fmt.Errorf("%w: invalid given name", ErrInvariantViolation)
-	ErrInvalidFamilyName       = fmt.Errorf("%w: invalid family name", ErrInvariantViolation)
-	ErrInvalidMiddleName       = fmt.Errorf("%w: invalid middle name", ErrInvariantViolation)
-	ErrInvalidAdminSince       = fmt.Errorf("%w: invalid admin since", ErrInvariantViolation)
-	ErrAdminRoleGrantForbidden = fmt.Errorf("%w: admin role grant forbidden", ErrInvariantViolation)
-	ErrCustomNameAlreadyEmpty  = fmt.Errorf("%w: custom name is already empty", ErrInvariantViolation)
+	ErrInvalidUserID              = fmt.Errorf("%w: invalid user id", ErrInvariantViolation)
+	ErrInvalidUserGivenName       = fmt.Errorf("%w: invalid given name", ErrInvariantViolation)
+	ErrInvalidUserFamilyName      = fmt.Errorf("%w: invalid family name", ErrInvariantViolation)
+	ErrInvalidUserMiddleName      = fmt.Errorf("%w: invalid middle name", ErrInvariantViolation)
+	ErrInvalidUserEmployment      = fmt.Errorf("%w: invalid user employment", ErrInvariantViolation)
+	ErrInvalidAdminRoleSince      = fmt.Errorf("%w: invalid admin since", ErrInvariantViolation)
+	ErrAdminRoleGrantForbidden    = fmt.Errorf("%w: admin role grant forbidden", ErrInvariantViolation)
+	ErrUserCustomNameAlreadyEmpty = fmt.Errorf("%w: custom name is already empty", ErrInvariantViolation)
 )
 
 // Employment errors
 var (
 	ErrInvalidEmploymentID                   = fmt.Errorf("%w: invalid employment id", ErrInvariantViolation)
+	ErrInvalidEmploymentUserID               = fmt.Errorf("%w: invalid employment user id", ErrInvariantViolation)
 	ErrInvalidEmploymentPosition             = fmt.Errorf("%w: invalid employment position", ErrInvariantViolation)
 	ErrInvalidEmploymentDeputy               = fmt.Errorf("%w: invalid deputy", ErrInvariantViolation)
 	ErrInvalidEmploymentVacation             = fmt.Errorf("%w: invalid vacation state", ErrInvariantViolation)

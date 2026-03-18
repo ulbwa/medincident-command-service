@@ -144,7 +144,7 @@ func (u *User) OverrideName(customName UserName) error {
 
 func (u *User) RemoveCustomName() error {
 	if u.CustomName == nil {
-		return errors.ErrCustomNameAlreadyEmpty
+		return errors.ErrUserCustomNameAlreadyEmpty
 	}
 
 	u.CustomName = nil

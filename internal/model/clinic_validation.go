@@ -68,7 +68,7 @@ func validateClinic(c *Clinic) error {
 	}
 
 	if err := validateOrganizationID(c.OrganizationID); err != nil {
-		return fmt.Errorf("invalid organization id: %w", err)
+		return err
 	}
 
 	if err := validateClinicName(c.Name); err != nil {

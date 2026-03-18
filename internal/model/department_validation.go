@@ -68,7 +68,7 @@ func validateDepartment(d *Department) error {
 	}
 
 	if err := validateClinicID(d.ClinicID); err != nil {
-		return fmt.Errorf("invalid clinic id: %w", err)
+		return err
 	}
 
 	if err := validateDepartmentName(d.Name); err != nil {

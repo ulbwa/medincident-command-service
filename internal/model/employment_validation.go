@@ -67,13 +67,13 @@ func validateEmployment(e *Employment) error {
 		return err
 	}
 	if err := validateUserID(e.UserID); err != nil {
-		return fmt.Errorf("invalid user id: %w", err)
+		return err
 	}
 	if err := validateOrganizationID(e.OrganizationID); err != nil {
-		return fmt.Errorf("invalid organization id: %w", err)
+		return err
 	}
 	if err := validateClinicID(e.ClinicID); err != nil {
-		return fmt.Errorf("invalid clinic id: %w", err)
+		return err
 	}
 	if err := validateDepartmentID(e.DepartmentID); err != nil {
 		return err
