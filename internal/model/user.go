@@ -249,12 +249,12 @@ func (u *User) RevokeAdminRole(actor *User) error {
 		return fmt.Errorf("%w: actor is nil", errors.ErrAdminRoleGrantForbidden)
 	}
 
-	if err := actor.CanGrantAdminRole(); err != nil {
-		return err
-	}
-
 	if actor.ID == u.ID {
 		return errors.ErrAdminSelfRevokeForbidden
+	}
+
+	if err := actor.CanGrantAdminRole(); err != nil {
+		return err
 	}
 
 	if !u.IsAdmin() {
