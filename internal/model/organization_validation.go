@@ -76,5 +76,9 @@ func validateOrganization(o *Organization) error {
 		}
 	}
 
+	if err := validateAddress(o.LegalAddress); err != nil {
+		return err
+	}
+
 	return nil
 }

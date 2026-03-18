@@ -114,6 +114,15 @@ func TestOrganization_NewOrganization(t *testing.T) {
 		_, err := model.NewOrganization(id, "MedCorp Inc", &longDesc, addr)
 		assert.ErrorIs(t, err, errors.ErrInvalidOrganizationDescription)
 	})
+
+	t.Run("InvalidLegalAddress", func(t *testing.T) {
+		t.Parallel()
+		id := validOrgID()
+		invalidAddr := model.Address{Value: "bad", Point: nil}
+
+		_, err := model.NewOrganization(id, "MedCorp Inc", nil, invalidAddr)
+		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+	})
 }
 
 func TestOrganization_UpdateName(t *testing.T) {
@@ -208,4 +217,12 @@ func TestOrganization_RestoreOrganization(t *testing.T) {
 	assert.Equal(t, "RestoredOrg", org.Name)
 	assert.NotNil(t, org.Description)
 	assert.Equal(t, desc, *org.Description)
+
+	t.Run("InvalidLegalAddress", func(t *testing.T) {
+		t.Parallel()
+		invalidAddr := model.Address{Value: "bad", Point: nil}
+
+		_, err := model.RestoreOrganization(validOrgID(), "RestoredOrg", nil, invalidAddr)
+		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+	})
 }
