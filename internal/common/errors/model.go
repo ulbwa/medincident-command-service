@@ -16,6 +16,7 @@ var (
 	ErrInvalidUserMiddleName      = fmt.Errorf("%w: invalid middle name", ErrInvariantViolation)
 	ErrInvalidUserEmployment      = fmt.Errorf("%w: invalid user employment", ErrInvariantViolation)
 	ErrInvalidAdminRoleSince      = fmt.Errorf("%w: invalid admin since", ErrInvariantViolation)
+	ErrInvalidAdminRoleGranterID  = fmt.Errorf("%w: invalid admin role granter id", ErrInvariantViolation)
 	ErrAdminRoleGrantForbidden    = fmt.Errorf("%w: admin role grant forbidden", ErrInvariantViolation)
 	ErrUserCustomNameAlreadyEmpty = fmt.Errorf("%w: custom name is already empty", ErrInvariantViolation)
 )

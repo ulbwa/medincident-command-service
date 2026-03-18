@@ -69,7 +69,7 @@ func validateAdminRole(adminRole AdminRole) error {
 	}
 
 	if err := validateUserID(adminRole.GrantedBy); err != nil {
-		return fmt.Errorf("invalid admin role granter id: %w", err)
+		return fmt.Errorf("%w: %w", errs.ErrInvalidAdminRoleGranterID, err)
 	}
 
 	return nil
