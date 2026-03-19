@@ -32,9 +32,6 @@ func (u UserName) DisplayName() string {
 }
 
 func (u UserName) ShortName() string {
-	if u.GivenName == "" {
-		return ""
-	}
 	givenInitial := []rune(u.GivenName)[0]
 	if u.MiddleName != nil && *u.MiddleName != "" {
 		middleInitial := []rune(*u.MiddleName)[0]
@@ -155,7 +152,7 @@ func (u *User) OverrideName(customName UserName) error {
 	}
 
 	if err := validateUserName(customName); err != nil {
-		return err
+		return errors.NewInvalidUserError(errors.UserFieldCustomName, err)
 	}
 
 	u.CustomName = customName.copy()
@@ -168,9 +165,9 @@ func (u *User) OverrideName(customName UserName) error {
 	return nil
 }
 
-func (u *User) RemoveCustomName() error {
+func (u *User) RemoveCustomName() {
 	if u.CustomName == nil {
-		return errors.ErrUserCustomNameAlreadyEmpty
+		return
 	}
 
 	u.CustomName = nil
@@ -178,8 +175,6 @@ func (u *User) RemoveCustomName() error {
 		ID:         u.ID,
 		CustomName: nil,
 	})
-
-	return nil
 }
 
 func (u *User) UpdateName(name UserName) error {
@@ -188,7 +183,7 @@ func (u *User) UpdateName(name UserName) error {
 	}
 
 	if err := validateUserName(name); err != nil {
-		return err
+		return errors.NewInvalidUserError(errors.UserFieldName, err)
 	}
 
 	u.Name = *name.copy()
@@ -200,17 +195,18 @@ func (u *User) UpdateName(name UserName) error {
 	return nil
 }
 
-func (u *User) CanGrantAdminRole() error {
+func (u *User) CanManageAdminRole() error {
 	if !u.IsAdmin() {
-		return fmt.Errorf("%w: actor is not admin", errors.ErrAdminRoleGrantForbidden)
+		return errors.ErrAdminRoleGrantActorNotAdmin
 	}
 
 	if u.AdminRole.GrantedAt.IsZero() {
-		return fmt.Errorf("%w: admin since must not be zero time", errors.ErrAdminRoleGrantForbidden)
+		return errors.NewInvalidAdminRoleError(errors.AdminRoleFieldGrantedAt, errors.NewValueRequiredError())
 	}
 
-	if time.Since(u.AdminRole.GrantedAt) < AdminMinimumTenure {
-		return fmt.Errorf("%w: actor admin tenure is less than %.0f hours", errors.ErrAdminRoleGrantForbidden, AdminMinimumTenure.Hours())
+	actualTenure := time.Since(u.AdminRole.GrantedAt)
+	if actualTenure < AdminMinimumTenure {
+		return errors.ErrAdminRoleGrantInsufficientTenure
 	}
 
 	return nil
@@ -218,15 +214,15 @@ func (u *User) CanGrantAdminRole() error {
 
 func (u *User) GrantAdminRole(actor *User) error {
 	if actor == nil {
-		return fmt.Errorf("%w: actor is nil", errors.ErrAdminRoleGrantForbidden)
+		return errors.NewInvalidUserError(errors.UserFieldAdminRole, errors.NewValueRequiredError())
 	}
 
-	if err := actor.CanGrantAdminRole(); err != nil {
-		return err
+	if err := actor.CanManageAdminRole(); err != nil {
+		return errors.NewInvalidUserError(errors.UserFieldAdminRole, err)
 	}
 
 	if u.IsAdmin() {
-		return errors.ErrUserAlreadyAdmin
+		return errors.NewInvalidUserError(errors.UserFieldAdminRole, errors.ErrUserAlreadyAdmin)
 	}
 
 	at := time.Now().UTC()
@@ -246,19 +242,19 @@ func (u *User) GrantAdminRole(actor *User) error {
 
 func (u *User) RevokeAdminRole(actor *User) error {
 	if actor == nil {
-		return fmt.Errorf("%w: actor is nil", errors.ErrAdminRoleGrantForbidden)
+		return errors.NewInvalidUserError(errors.UserFieldAdminRole, errors.NewValueRequiredError())
 	}
 
 	if actor.ID == u.ID {
-		return errors.ErrAdminSelfRevokeForbidden
+		return errors.NewInvalidUserError(errors.UserFieldAdminRole, errors.ErrAdminSelfRevokeForbidden)
 	}
 
-	if err := actor.CanGrantAdminRole(); err != nil {
-		return err
+	if err := actor.CanManageAdminRole(); err != nil {
+		return errors.NewInvalidUserError(errors.UserFieldAdminRole, err)
 	}
 
 	if !u.IsAdmin() {
-		return nil // idempotent
+		return errors.NewInvalidUserError(errors.UserFieldAdminRole, errors.ErrUserNotAdmin)
 	}
 
 	revokedAt := time.Now().UTC()
@@ -311,14 +307,14 @@ func (u *User) IsEmployeeOfDepartment(departmentID uuid.UUID) bool {
 
 func (u *User) AssignEmployment(organizationID, clinicID, departmentID uuid.UUID, position *string) (uuid.UUID, error) {
 	if u.IsEmployeeOfOrganization(organizationID) {
-		return uuid.Nil, errors.ErrEmploymentAlreadyExistsInOrganization
+		return uuid.Nil, errors.NewInvalidUserError(errors.UserFieldEmployments, errors.ErrEmploymentAlreadyExistsInOrganization)
 	}
 
 	assignedAt := time.Now().UTC()
 
 	employment, err := NewEmployment(u.ID, organizationID, clinicID, departmentID, utils.PtrClone(position), assignedAt)
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, errors.NewInvalidUserError(errors.UserFieldEmployments, err)
 	}
 
 	u.Employments = append(u.Employments, employment)
@@ -338,7 +334,7 @@ func (u *User) AssignEmployment(organizationID, clinicID, departmentID uuid.UUID
 func (u *User) Dismiss(employmentID uuid.UUID) error {
 	index := u.findEmploymentIndex(employmentID)
 	if index < 0 {
-		return errors.ErrEmploymentNotFound
+		return errors.NewInvalidUserError(errors.UserFieldEmployments, errors.ErrEmploymentNotFound)
 	}
 
 	u.Employments = append(u.Employments[:index], u.Employments[index+1:]...)

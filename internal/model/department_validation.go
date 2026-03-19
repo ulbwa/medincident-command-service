@@ -2,10 +2,6 @@
 package model
 
 import (
-	"fmt"
-	"strings"
-	"unicode/utf8"
-
 	"github.com/google/uuid"
 
 	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
@@ -19,44 +15,35 @@ const (
 )
 
 func validateDepartmentID(id uuid.UUID) error {
-	if id == uuid.Nil {
-		return fmt.Errorf("%w: required", errs.ErrInvalidDepartmentID)
-	}
-	if id.Version() != 7 {
-		return fmt.Errorf("%w: must be a UUIDv7", errs.ErrInvalidDepartmentID)
-	}
-	return nil
+	return validateUUIDv7(id)
 }
 
 func validateDepartmentName(name string) error {
-	trimmed := strings.TrimSpace(name)
-	if trimmed != name {
-		return fmt.Errorf("%w: must not have leading or trailing whitespace", errs.ErrInvalidDepartmentName)
+	if err := validateStringNoLeadingOrTrailingWhitespace(name); err != nil {
+		return err
 	}
-
-	length := utf8.RuneCountInString(name)
-	if length < minDepartmentNameLength {
-		return fmt.Errorf("%w: too short (min %d)", errs.ErrInvalidDepartmentName, minDepartmentNameLength)
+	if err := validateStringNoConsecutiveSpaces(name); err != nil {
+		return err
 	}
-	if length > maxDepartmentNameLength {
-		return fmt.Errorf("%w: too long (max %d)", errs.ErrInvalidDepartmentName, maxDepartmentNameLength)
+	if err := validateStringMinLength(name, minDepartmentNameLength); err != nil {
+		return err
+	}
+	if err := validateStringMaxLength(name, maxDepartmentNameLength); err != nil {
+		return err
 	}
 
 	return nil
 }
 
 func validateDepartmentDescription(description string) error {
-	trimmed := strings.TrimSpace(description)
-	if trimmed != description {
-		return fmt.Errorf("%w: must not have leading or trailing whitespace", errs.ErrInvalidDepartmentDescription)
+	if err := validateStringNoLeadingOrTrailingWhitespace(description); err != nil {
+		return err
 	}
-
-	length := utf8.RuneCountInString(description)
-	if length < minDepartmentDescriptionLength {
-		return fmt.Errorf("%w: too short (min %d)", errs.ErrInvalidDepartmentDescription, minDepartmentDescriptionLength)
+	if err := validateStringMinLength(description, minDepartmentDescriptionLength); err != nil {
+		return err
 	}
-	if length > maxDepartmentDescriptionLength {
-		return fmt.Errorf("%w: too long (max %d)", errs.ErrInvalidDepartmentDescription, maxDepartmentDescriptionLength)
+	if err := validateStringMaxLength(description, maxDepartmentDescriptionLength); err != nil {
+		return err
 	}
 
 	return nil
@@ -64,20 +51,20 @@ func validateDepartmentDescription(description string) error {
 
 func validateDepartment(d *Department) error {
 	if err := validateDepartmentID(d.ID); err != nil {
-		return err
+		return errs.NewInvalidDepartmentError(errs.DepartmentFieldID, err)
 	}
 
 	if err := validateClinicID(d.ClinicID); err != nil {
-		return err
+		return errs.NewInvalidDepartmentError(errs.DepartmentFieldClinicID, err)
 	}
 
 	if err := validateDepartmentName(d.Name); err != nil {
-		return err
+		return errs.NewInvalidDepartmentError(errs.DepartmentFieldName, err)
 	}
 
 	if d.Description != nil {
 		if err := validateDepartmentDescription(*d.Description); err != nil {
-			return err
+			return errs.NewInvalidDepartmentError(errs.DepartmentFieldDescription, err)
 		}
 	}
 

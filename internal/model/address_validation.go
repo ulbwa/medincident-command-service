@@ -1,10 +1,6 @@
 package model
 
 import (
-	"fmt"
-	"strings"
-	"unicode/utf8"
-
 	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
 )
 
@@ -14,17 +10,17 @@ const (
 )
 
 func validateAddressValue(value string) error {
-	trimmed := strings.TrimSpace(value)
-	if trimmed != value {
-		return fmt.Errorf("%w: must not have leading or trailing whitespace", errs.ErrInvalidAddressValue)
+	if err := validateStringNoLeadingOrTrailingWhitespace(value); err != nil {
+		return err
 	}
-
-	length := utf8.RuneCountInString(value)
-	if length < minAddressLength {
-		return fmt.Errorf("%w: too short (min %d)", errs.ErrInvalidAddressValue, minAddressLength)
+	if err := validateStringNoConsecutiveSpaces(value); err != nil {
+		return err
 	}
-	if length > maxAddressLength {
-		return fmt.Errorf("%w: too long (max %d)", errs.ErrInvalidAddressValue, maxAddressLength)
+	if err := validateStringMinLength(value, minAddressLength); err != nil {
+		return err
+	}
+	if err := validateStringMaxLength(value, maxAddressLength); err != nil {
+		return err
 	}
 
 	return nil
@@ -32,11 +28,17 @@ func validateAddressValue(value string) error {
 
 func validateGeoPoint(point GeoPoint) error {
 	if point.Latitude < -90 || point.Latitude > 90 {
-		return fmt.Errorf("%w: must be between -90 and 90", errs.ErrInvalidLatitude)
+		return errs.NewInvalidGeoPointError(
+			errs.GeoPointFieldLatitude,
+			errs.NewNumberOutOfRangeError(-90, 90, point.Latitude),
+		)
 	}
 
 	if point.Longitude < -180 || point.Longitude > 180 {
-		return fmt.Errorf("%w: must be between -180 and 180", errs.ErrInvalidLongitude)
+		return errs.NewInvalidGeoPointError(
+			errs.GeoPointFieldLongitude,
+			errs.NewNumberOutOfRangeError(-180, 180, point.Longitude),
+		)
 	}
 
 	return nil
@@ -44,12 +46,12 @@ func validateGeoPoint(point GeoPoint) error {
 
 func validateAddress(address Address) error {
 	if err := validateAddressValue(address.Value); err != nil {
-		return err
+		return errs.NewInvalidAddressError(errs.AddressFieldValue, err)
 	}
 
 	if address.Point != nil {
 		if err := validateGeoPoint(*address.Point); err != nil {
-			return err
+			return errs.NewInvalidAddressError(errs.AddressFieldPoint, err)
 		}
 	}
 

@@ -3,6 +3,7 @@ package model
 import (
 	"github.com/google/uuid"
 
+	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
 	"github.com/ulbwa/medincident-command-service/pkg/utils"
 )
 
@@ -61,7 +62,7 @@ func (d *Department) UpdateName(name string) error {
 	}
 
 	if err := validateDepartmentName(name); err != nil {
-		return err
+		return errs.NewInvalidDepartmentError(errs.DepartmentFieldName, err)
 	}
 
 	d.Name = name
@@ -72,14 +73,14 @@ func (d *Department) UpdateName(name string) error {
 	return nil
 }
 
-// UpdateDescription changes the department description.
-func (d *Department) UpdateDescription(description string) error {
+// SetDescription sets the department description.
+func (d *Department) SetDescription(description string) error {
 	if d.Description != nil && *d.Description == description {
 		return nil
 	}
 
 	if err := validateDepartmentDescription(description); err != nil {
-		return err
+		return errs.NewInvalidDepartmentError(errs.DepartmentFieldDescription, err)
 	}
 
 	d.Description = &description

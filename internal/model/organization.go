@@ -3,6 +3,7 @@ package model
 import (
 	"github.com/google/uuid"
 
+	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
 	"github.com/ulbwa/medincident-command-service/pkg/utils"
 )
 
@@ -61,7 +62,7 @@ func (o *Organization) UpdateName(name string) error {
 	}
 
 	if err := validateOrganizationName(name); err != nil {
-		return err
+		return errs.NewInvalidOrganizationError(errs.OrganizationFieldName, err)
 	}
 
 	o.Name = name
@@ -72,14 +73,14 @@ func (o *Organization) UpdateName(name string) error {
 	return nil
 }
 
-// UpdateDescription changes the organization description.
-func (o *Organization) UpdateDescription(description string) error {
+// SetDescription sets the organization description.
+func (o *Organization) SetDescription(description string) error {
 	if o.Description != nil && *o.Description == description {
 		return nil
 	}
 
 	if err := validateOrganizationDescription(description); err != nil {
-		return err
+		return errs.NewInvalidOrganizationError(errs.OrganizationFieldDescription, err)
 	}
 
 	o.Description = &description
@@ -110,7 +111,7 @@ func (o *Organization) UpdateLegalAddress(address Address) error {
 	}
 
 	if err := validateAddress(address); err != nil {
-		return err
+		return errs.NewInvalidOrganizationError(errs.OrganizationFieldLegalAddress, err)
 	}
 
 	o.LegalAddress = address.copy()
