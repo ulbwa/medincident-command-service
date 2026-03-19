@@ -9,6 +9,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/rs/zerolog"
 
+	"github.com/ulbwa/medincident-command-service/internal/common/authorization"
 	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
 	"github.com/ulbwa/medincident-command-service/internal/common/outbox"
 	"github.com/ulbwa/medincident-command-service/internal/common/persistence"
@@ -17,13 +18,14 @@ import (
 )
 
 type Service struct {
-	txFactory        persistence.TransactionFactory
-	eventDispatcher  outbox.EventDispatcher
-	identityProvider IdentityProvider
-	repo             Repository
+	txFactory         persistence.TransactionFactory
+	eventDispatcher   outbox.EventDispatcher
+	identityProvider  IdentityProvider
+	tokenIntrospector authorization.AccessTokenIntrospector
+	repo              Repository
 }
 
-func NewService(txFactory persistence.TransactionFactory, eventDispatcher outbox.EventDispatcher, identityProvider IdentityProvider, repo Repository) (*Service, error) {
+func NewService(txFactory persistence.TransactionFactory, eventDispatcher outbox.EventDispatcher, identityProvider IdentityProvider, tokenIntrospector authorization.AccessTokenIntrospector, repo Repository) (*Service, error) {
 	if txFactory == nil {
 		return nil, errors.New("transaction factory is required")
 	}
@@ -33,14 +35,18 @@ func NewService(txFactory persistence.TransactionFactory, eventDispatcher outbox
 	if identityProvider == nil {
 		return nil, errors.New("identity provider is required")
 	}
+	if tokenIntrospector == nil {
+		return nil, errors.New("token introspector is required")
+	}
 	if repo == nil {
 		return nil, errors.New("repository is required")
 	}
 	return &Service{
-		txFactory:        txFactory,
-		eventDispatcher:  eventDispatcher,
-		identityProvider: identityProvider,
-		repo:             repo,
+		txFactory:         txFactory,
+		eventDispatcher:   eventDispatcher,
+		identityProvider:  identityProvider,
+		tokenIntrospector: tokenIntrospector,
+		repo:              repo,
 	}, nil
 }
 
