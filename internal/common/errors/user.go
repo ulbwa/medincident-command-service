@@ -1,7 +1,7 @@
 package errors
 
 import (
-	stderrors "errors"
+	"errors"
 	"fmt"
 )
 
@@ -30,6 +30,7 @@ func (e *InvalidUserNameError) Unwrap() error {
 	if e == nil {
 		return nil
 	}
+
 	return e.Reason
 }
 
@@ -61,6 +62,7 @@ func (e *InvalidAdminRoleError) Unwrap() error {
 	if e == nil {
 		return nil
 	}
+
 	return e.Reason
 }
 
@@ -77,8 +79,6 @@ const (
 	UserFieldCustomName  UserField = "customName"
 	UserFieldEmployments UserField = "employments"
 )
-
-var ErrUserCannotBeOwnDeputy = stderrors.New("user cannot be their own deputy")
 
 type InvalidUserError struct {
 	Field  UserField
@@ -97,9 +97,18 @@ func (e *InvalidUserError) Unwrap() error {
 	if e == nil {
 		return nil
 	}
+
 	return e.Reason
 }
 
 func NewInvalidUserError(field UserField, reason error) *InvalidUserError {
 	return &InvalidUserError{Field: field, Reason: reason}
 }
+
+var (
+	ErrAdminRoleGrantActorNotAdmin      = errors.New("admin role grant forbidden: actor is not admin")
+	ErrAdminRoleGrantInsufficientTenure = errors.New("admin role grant forbidden: actor has insufficient tenure")
+	ErrUserAlreadyAdmin                 = errors.New("user is already admin")
+	ErrUserNotAdmin                     = errors.New("user is not admin")
+	ErrAdminSelfRevokeForbidden         = errors.New("admin cannot revoke own role")
+)

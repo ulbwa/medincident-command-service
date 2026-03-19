@@ -19,6 +19,7 @@ func (e *InvalidCollectionItemError) Unwrap() error {
 	if e == nil {
 		return nil
 	}
+
 	return e.Reason
 }
 

@@ -36,6 +36,7 @@ func (e *InvalidEmploymentError) Unwrap() error {
 	if e == nil {
 		return nil
 	}
+
 	return e.Reason
 }
 
@@ -67,6 +68,7 @@ func (e *InvalidEmploymentVacationError) Unwrap() error {
 	if e == nil {
 		return nil
 	}
+
 	return e.Reason
 }
 
@@ -97,6 +99,7 @@ func (e *InvalidEmploymentDeputyError) Unwrap() error {
 	if e == nil {
 		return nil
 	}
+
 	return e.Reason
 }
 
@@ -104,4 +107,9 @@ func NewInvalidEmploymentDeputyError(field EmploymentDeputyField, reason error) 
 	return &InvalidEmploymentDeputyError{Field: field, Reason: reason}
 }
 
-var ErrEmploymentVacationAlreadyExists = errors.New("employment vacation already exists")
+var (
+	ErrUserCannotBeOwnDeputy                 = errors.New("user cannot be their own deputy")
+	ErrEmploymentVacationAlreadyExists       = errors.New("employment vacation already exists")
+	ErrEmploymentAlreadyExistsInOrganization = errors.New("employment already exists in organization")
+	ErrEmploymentNotFound                    = errors.New("employment not found")
+)
