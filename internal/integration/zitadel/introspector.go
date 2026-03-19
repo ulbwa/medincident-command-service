@@ -10,9 +10,8 @@ import (
 	zitadelSDK "github.com/zitadel/zitadel-go/v3/pkg/zitadel"
 
 	"github.com/ulbwa/medincident-command-service/internal/common/authorization"
+	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
 )
-
-var errInvalidOrInactiveToken = errors.New("invalid or inactive token")
 
 // AccessTokenIntrospector implements the authorization.AccessTokenIntrospector port using the
 // Zitadel OAuth2 token introspection endpoint authenticated via client credentials.
@@ -48,7 +47,7 @@ func NewAccessTokenIntrospector(
 
 // Introspect validates the bearer token via Zitadel and returns the caller's claims.
 //
-// Returns errInvalidOrInactiveToken when the token is invalid, expired, or inactive.
+// Returns errs.ErrInvalidToken when the token is invalid, expired, or inactive.
 // Returns a wrapped infrastructure error when Zitadel is unavailable.
 func (i *AccessTokenIntrospector) Introspect(ctx context.Context, bearerToken string) (*authorization.AccessClaims, error) {
 	authCtx, err := i.authorizer.CheckAuthorization(ctx, "Bearer "+bearerToken)
@@ -56,7 +55,7 @@ func (i *AccessTokenIntrospector) Introspect(ctx context.Context, bearerToken st
 		if errors.As(err, new(*zitauth.ServiceUnavailableErr)) {
 			return nil, fmt.Errorf("identity provider unavailable: %w", err)
 		}
-		return nil, errInvalidOrInactiveToken
+		return nil, errs.ErrInvalidToken
 	}
 
 	claims := &authorization.AccessClaims{
@@ -76,7 +75,7 @@ func (i *AccessTokenIntrospector) Introspect(ctx context.Context, bearerToken st
 	}
 
 	if !claims.IsValid() {
-		return nil, errInvalidOrInactiveToken
+		return nil, errs.ErrInvalidToken
 	}
 
 	return claims, nil
