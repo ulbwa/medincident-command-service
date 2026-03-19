@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ulbwa/medincident-command-service/internal/common/authorization"
 	"github.com/ulbwa/medincident-command-service/internal/common/errors"
 	"github.com/ulbwa/medincident-command-service/internal/common/outbox"
 	"github.com/ulbwa/medincident-command-service/internal/common/persistence"
@@ -105,6 +106,18 @@ func (m *MockIdentityProvider) UpdateHuman(ctx context.Context, id int64, human 
 	return args.Get(0).(*Identity), args.Error(1)
 }
 
+type MockTokenIntrospector struct {
+	mock.Mock
+}
+
+func (m *MockTokenIntrospector) Introspect(ctx context.Context, bearerToken string) (*authorization.AccessClaims, error) {
+	args := m.Called(ctx, bearerToken)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*authorization.AccessClaims), args.Error(1)
+}
+
 // Tests
 
 func TestService_GrantAdminRole(t *testing.T) {
@@ -120,8 +133,9 @@ func TestService_GrantAdminRole(t *testing.T) {
 		mockDispatcher := new(MockEventDispatcher)
 		mockRepo := new(MockRepo)
 		mockIDP := new(MockIdentityProvider)
+		mockTokenIntrospector := new(MockTokenIntrospector)
 
-		svc, err := NewService(mockTxFactory, mockDispatcher, mockIDP, mockRepo)
+		svc, err := NewService(mockTxFactory, mockDispatcher, mockIDP, mockTokenIntrospector, mockRepo)
 		require.NoError(t, err)
 
 		un, _ := model.NewUserName("Test", "User", nil)
@@ -165,8 +179,9 @@ func TestService_GrantAdminRole(t *testing.T) {
 		mockDispatcher := new(MockEventDispatcher)
 		mockRepo := new(MockRepo)
 		mockIDP := new(MockIdentityProvider)
+		mockTokenIntrospector := new(MockTokenIntrospector)
 
-		svc, _ := NewService(mockTxFactory, mockDispatcher, mockIDP, mockRepo)
+		svc, _ := NewService(mockTxFactory, mockDispatcher, mockIDP, mockTokenIntrospector, mockRepo)
 
 		actorUn, _ := model.NewUserName("Actor", "User", nil)
 		actor, _ := model.NewUser(actorID, actorUn)
@@ -190,8 +205,9 @@ func TestService_GrantAdminRole(t *testing.T) {
 		mockDispatcher := new(MockEventDispatcher)
 		mockRepo := new(MockRepo)
 		mockIDP := new(MockIdentityProvider)
+		mockTokenIntrospector := new(MockTokenIntrospector)
 
-		svc, _ := NewService(mockTxFactory, mockDispatcher, mockIDP, mockRepo)
+		svc, _ := NewService(mockTxFactory, mockDispatcher, mockIDP, mockTokenIntrospector, mockRepo)
 
 		actorUn, _ := model.NewUserName("Actor", "User", nil)
 		actor, _ := model.NewUser(actorID, actorUn)
@@ -227,8 +243,9 @@ func TestService_RevokeAdminRole(t *testing.T) {
 		mockDispatcher := new(MockEventDispatcher)
 		mockRepo := new(MockRepo)
 		mockIDP := new(MockIdentityProvider)
+		mockTokenIntrospector := new(MockTokenIntrospector)
 
-		svc, err := NewService(mockTxFactory, mockDispatcher, mockIDP, mockRepo)
+		svc, err := NewService(mockTxFactory, mockDispatcher, mockIDP, mockTokenIntrospector, mockRepo)
 		require.NoError(t, err)
 
 		un, _ := model.NewUserName("Test", "User", nil)
@@ -277,8 +294,9 @@ func TestService_RevokeAdminRole(t *testing.T) {
 		mockDispatcher := new(MockEventDispatcher)
 		mockRepo := new(MockRepo)
 		mockIDP := new(MockIdentityProvider)
+		mockTokenIntrospector := new(MockTokenIntrospector)
 
-		svc, _ := NewService(mockTxFactory, mockDispatcher, mockIDP, mockRepo)
+		svc, _ := NewService(mockTxFactory, mockDispatcher, mockIDP, mockTokenIntrospector, mockRepo)
 
 		actorUn, _ := model.NewUserName("Actor", "User", nil)
 		actor, _ := model.NewUser(actorID, actorUn)
@@ -302,8 +320,9 @@ func TestService_RevokeAdminRole(t *testing.T) {
 		mockDispatcher := new(MockEventDispatcher)
 		mockRepo := new(MockRepo)
 		mockIDP := new(MockIdentityProvider)
+		mockTokenIntrospector := new(MockTokenIntrospector)
 
-		svc, _ := NewService(mockTxFactory, mockDispatcher, mockIDP, mockRepo)
+		svc, _ := NewService(mockTxFactory, mockDispatcher, mockIDP, mockTokenIntrospector, mockRepo)
 
 		actorUn, _ := model.NewUserName("Actor", "User", nil)
 		actor, _ := model.NewUser(actorID, actorUn)
@@ -324,4 +343,71 @@ func TestService_RevokeAdminRole(t *testing.T) {
 		})
 		assert.ErrorIs(t, err, errors.ErrAdminRoleGrantForbidden)
 	})
+}
+
+func TestNewService_NilDependencies(t *testing.T) {
+	t.Parallel()
+
+	newValidDeps := func() (persistence.TransactionFactory, outbox.EventDispatcher, IdentityProvider, authorization.AccessTokenIntrospector, Repository) {
+		return new(MockTxFactory), new(MockEventDispatcher), new(MockIdentityProvider), new(MockTokenIntrospector), new(MockRepo)
+	}
+
+	tests := []struct {
+		name        string
+		nilArg      string
+		expectedErr string
+	}{
+		{
+			name:        "NilTxFactory",
+			nilArg:      "txFactory",
+			expectedErr: "transaction factory is required",
+		},
+		{
+			name:        "NilEventDispatcher",
+			nilArg:      "eventDispatcher",
+			expectedErr: "event dispatcher is required",
+		},
+		{
+			name:        "NilIdentityProvider",
+			nilArg:      "identityProvider",
+			expectedErr: "identity provider is required",
+		},
+		{
+			name:        "NilTokenIntrospector",
+			nilArg:      "tokenIntrospector",
+			expectedErr: "token introspector is required",
+		},
+		{
+			name:        "NilRepository",
+			nilArg:      "repo",
+			expectedErr: "repository is required",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			txFactory, eventDispatcher, identityProvider, tokenIntrospector, repo := newValidDeps()
+
+			switch tc.nilArg {
+			case "txFactory":
+				txFactory = nil
+			case "eventDispatcher":
+				eventDispatcher = nil
+			case "identityProvider":
+				identityProvider = nil
+			case "tokenIntrospector":
+				tokenIntrospector = nil
+			case "repo":
+				repo = nil
+			}
+
+			svc, err := NewService(txFactory, eventDispatcher, identityProvider, tokenIntrospector, repo)
+			require.Error(t, err)
+			require.Nil(t, svc)
+			require.EqualError(t, err, tc.expectedErr)
+		})
+	}
 }
