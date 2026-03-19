@@ -88,6 +88,7 @@ func validateUser(u *User) error {
 			return errs.NewInvalidUserError(errs.UserFieldAdminRole, err)
 		}
 	}
+	// validateUserEmployments already wraps errors in *InvalidUserError with item indexes preserved.
 	if err := validateUserEmployments(u); err != nil {
 		return err
 	}
