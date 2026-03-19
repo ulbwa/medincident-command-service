@@ -189,6 +189,13 @@ func (e *Employment) GrantVacation(endsAt *time.Time) error {
 func (e *Employment) ScheduleVacation(startsAt time.Time, endsAt *time.Time) error {
 	now := time.Now().UTC()
 
+	if startsAt.IsZero() {
+		return errs.NewInvalidEmploymentError(
+			errs.EmploymentFieldVacation,
+			errs.NewInvalidEmploymentVacationError(errs.EmploymentVacationFieldStartsAt, errs.NewValueRequiredError()),
+		)
+	}
+
 	if err := validateTimestampNotBefore(startsAt, now); err != nil {
 		return errs.NewInvalidEmploymentError(
 			errs.EmploymentFieldVacation,

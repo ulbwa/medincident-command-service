@@ -106,6 +106,17 @@ func validateUserEmployments(u *User) error {
 			)
 		}
 
+		// Validate the employment first so that structural errors (e.g. invalid
+		// OrganizationID) are surfaced before the uniqueness check. Otherwise two
+		// employments with uuid.Nil would be reported as a duplicate instead of
+		// an invalid OrganizationID.
+		if err := validateEmployment(employment); err != nil {
+			return errs.NewInvalidUserError(
+				errs.UserFieldEmployments,
+				errs.NewInvalidCollectionItemError(index, err),
+			)
+		}
+
 		if _, exists := organizationIndexes[employment.OrganizationID]; exists {
 			return errs.NewInvalidUserError(
 				errs.UserFieldEmployments,
@@ -120,12 +131,6 @@ func validateUserEmployments(u *User) error {
 		}
 		organizationIndexes[employment.OrganizationID] = index
 
-		if err := validateEmployment(employment); err != nil {
-			return errs.NewInvalidUserError(
-				errs.UserFieldEmployments,
-				errs.NewInvalidCollectionItemError(index, err),
-			)
-		}
 		if employment.UserID != u.ID {
 			return errs.NewInvalidUserError(
 				errs.UserFieldEmployments,
