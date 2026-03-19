@@ -1,12 +1,11 @@
 package model
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 
-	"github.com/ulbwa/medincident-command-service/internal/common/errors"
+	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
 	"github.com/ulbwa/medincident-command-service/pkg/utils"
 )
 
@@ -148,7 +147,7 @@ func (e Employment) HasScheduledVacation() bool {
 
 func (e *Employment) AssignDeputy(deputyID int64) error {
 	if deputyID == e.UserID {
-		return fmt.Errorf("%w: user cannot be their own deputy", errors.ErrInvalidEmploymentDeputy)
+		return errs.NewInvalidEmploymentError(errs.EmploymentFieldDeputy, errs.ErrUserCannotBeOwnDeputy)
 	}
 
 	if e.Deputy != nil && e.Deputy.ID == deputyID {
@@ -157,7 +156,7 @@ func (e *Employment) AssignDeputy(deputyID int64) error {
 
 	deputy, err := NewEmploymentDeputy(deputyID)
 	if err != nil {
-		return err
+		return errs.NewInvalidEmploymentError(errs.EmploymentFieldDeputy, err)
 	}
 	e.Deputy = &deputy
 
@@ -182,24 +181,40 @@ func (e *Employment) RemoveDeputy() {
 	})
 }
 
-func (e *Employment) GrantVacation(endAt *time.Time) error {
-	return e.ScheduleVacation(time.Now().UTC(), endAt)
+func (e *Employment) GrantVacation(endsAt *time.Time) error {
+	now := time.Now().UTC()
+	return e.scheduleVacation(now, now, endsAt)
 }
 
 func (e *Employment) ScheduleVacation(startsAt time.Time, endsAt *time.Time) error {
 	now := time.Now().UTC()
 
-	if e.Vacation != nil {
-		return errors.ErrEmploymentVacationAlreadyExists
+	if err := validateTimestampNotBefore(startsAt, now); err != nil {
+		return errs.NewInvalidEmploymentError(
+			errs.EmploymentFieldVacation,
+			errs.NewInvalidEmploymentVacationError(errs.EmploymentVacationFieldStartsAt, err),
+		)
 	}
 
-	if startsAt.After(now.AddDate(0, EmploymentVacationMaxScheduleAheadMonths, 0)) {
-		return fmt.Errorf("%w: cannot schedule vacation more than %d months ahead", errors.ErrEmploymentVacationTooFarInFuture, EmploymentVacationMaxScheduleAheadMonths)
+	return e.scheduleVacation(now, startsAt, endsAt)
+}
+
+func (e *Employment) scheduleVacation(now, startsAt time.Time, endsAt *time.Time) error {
+	if e.Vacation != nil {
+		return errs.NewInvalidEmploymentError(errs.EmploymentFieldVacation, errs.ErrEmploymentVacationAlreadyExists)
+	}
+
+	maximum := now.AddDate(0, EmploymentVacationMaxScheduleAheadMonths, 0)
+	if err := validateTimestampNotAfter(startsAt, maximum); err != nil {
+		return errs.NewInvalidEmploymentError(
+			errs.EmploymentFieldVacation,
+			errs.NewInvalidEmploymentVacationError(errs.EmploymentVacationFieldStartsAt, err),
+		)
 	}
 
 	vacation, err := NewEmploymentVacation(startsAt, endsAt)
 	if err != nil {
-		return err
+		return errs.NewInvalidEmploymentError(errs.EmploymentFieldVacation, err)
 	}
 
 	e.Vacation = &vacation

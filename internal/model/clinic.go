@@ -3,6 +3,7 @@ package model
 import (
 	"github.com/google/uuid"
 
+	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
 	"github.com/ulbwa/medincident-command-service/pkg/utils"
 )
 
@@ -65,7 +66,7 @@ func (c *Clinic) UpdateName(name string) error {
 	}
 
 	if err := validateClinicName(name); err != nil {
-		return err
+		return errs.NewInvalidClinicError(errs.ClinicFieldName, err)
 	}
 
 	c.Name = name
@@ -76,14 +77,14 @@ func (c *Clinic) UpdateName(name string) error {
 	return nil
 }
 
-// UpdateDescription changes the clinic description.
-func (c *Clinic) UpdateDescription(description string) error {
+// SetDescription sets the clinic description.
+func (c *Clinic) SetDescription(description string) error {
 	if c.Description != nil && *c.Description == description {
 		return nil
 	}
 
 	if err := validateClinicDescription(description); err != nil {
-		return err
+		return errs.NewInvalidClinicError(errs.ClinicFieldDescription, err)
 	}
 
 	c.Description = &description
@@ -114,7 +115,7 @@ func (c *Clinic) UpdatePhysicalAddress(address Address) error {
 	}
 
 	if err := validateAddress(address); err != nil {
-		return err
+		return errs.NewInvalidClinicError(errs.ClinicFieldPhysicalAddress, err)
 	}
 
 	c.PhysicalAddress = address.copy()

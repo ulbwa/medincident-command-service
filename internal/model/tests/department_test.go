@@ -1,6 +1,7 @@
 package tests
 
 import (
+	stderrors "errors"
 	"strings"
 	"testing"
 
@@ -15,6 +16,13 @@ import (
 func validDeptID() uuid.UUID {
 	id, _ := uuid.NewV7()
 	return id
+}
+
+func assertInvalidDepartmentField(t *testing.T, err error, field errors.DepartmentField) {
+	t.Helper()
+	var departmentErr *errors.InvalidDepartmentError
+	require.True(t, stderrors.As(err, &departmentErr))
+	assert.Equal(t, field, departmentErr.Field)
 }
 
 func TestDepartment_NewDepartment(t *testing.T) {
@@ -50,7 +58,10 @@ func TestDepartment_NewDepartment(t *testing.T) {
 		clinicID := validClinicID()
 
 		_, err := model.NewDepartment(uuid.Nil, clinicID, "Department", nil)
-		assert.ErrorIs(t, err, errors.ErrInvalidDepartmentID)
+		assertInvalidDepartmentField(t, err, errors.DepartmentFieldID)
+		var uuidErr *errors.InvalidUUIDError
+		require.True(t, stderrors.As(err, &uuidErr))
+		assert.Equal(t, errors.UUIDValidationReasonRequired, uuidErr.Reason)
 	})
 
 	t.Run("InvalidUUIDVersion", func(t *testing.T) {
@@ -59,7 +70,10 @@ func TestDepartment_NewDepartment(t *testing.T) {
 		id := uuid.New() // v4
 
 		_, err := model.NewDepartment(id, clinicID, "Department", nil)
-		assert.ErrorIs(t, err, errors.ErrInvalidDepartmentID)
+		assertInvalidDepartmentField(t, err, errors.DepartmentFieldID)
+		var uuidErr *errors.InvalidUUIDError
+		require.True(t, stderrors.As(err, &uuidErr))
+		assert.Equal(t, errors.UUIDValidationReasonInvalidVersion, uuidErr.Reason)
 	})
 
 	t.Run("NilClinicID", func(t *testing.T) {
@@ -67,7 +81,7 @@ func TestDepartment_NewDepartment(t *testing.T) {
 		id := validDeptID()
 
 		_, err := model.NewDepartment(id, uuid.Nil, "Department", nil)
-		assert.ErrorIs(t, err, errors.ErrInvalidClinicID)
+		assertInvalidDepartmentField(t, err, errors.DepartmentFieldClinicID)
 	})
 
 	t.Run("InvalidClinicUUIDVersion", func(t *testing.T) {
@@ -76,7 +90,7 @@ func TestDepartment_NewDepartment(t *testing.T) {
 		clinicID := uuid.New() // v4
 
 		_, err := model.NewDepartment(id, clinicID, "Department", nil)
-		assert.ErrorIs(t, err, errors.ErrInvalidClinicID)
+		assertInvalidDepartmentField(t, err, errors.DepartmentFieldClinicID)
 	})
 
 	t.Run("EmptyName", func(t *testing.T) {
@@ -85,7 +99,7 @@ func TestDepartment_NewDepartment(t *testing.T) {
 		clinicID := validClinicID()
 
 		_, err := model.NewDepartment(id, clinicID, "", nil)
-		assert.ErrorIs(t, err, errors.ErrInvalidDepartmentName)
+		assertInvalidDepartmentField(t, err, errors.DepartmentFieldName)
 	})
 
 	t.Run("TooLongName", func(t *testing.T) {
@@ -95,7 +109,7 @@ func TestDepartment_NewDepartment(t *testing.T) {
 		longName := strings.Repeat("A", 256)
 
 		_, err := model.NewDepartment(id, clinicID, longName, nil)
-		assert.ErrorIs(t, err, errors.ErrInvalidDepartmentName)
+		assertInvalidDepartmentField(t, err, errors.DepartmentFieldName)
 	})
 
 	t.Run("NameWithLeadingWhitespace", func(t *testing.T) {
@@ -104,7 +118,7 @@ func TestDepartment_NewDepartment(t *testing.T) {
 		clinicID := validClinicID()
 
 		_, err := model.NewDepartment(id, clinicID, " Department", nil)
-		assert.ErrorIs(t, err, errors.ErrInvalidDepartmentName)
+		assertInvalidDepartmentField(t, err, errors.DepartmentFieldName)
 	})
 
 	t.Run("EmptyDescription", func(t *testing.T) {
@@ -114,7 +128,7 @@ func TestDepartment_NewDepartment(t *testing.T) {
 		emptyDesc := ""
 
 		_, err := model.NewDepartment(id, clinicID, "Department", &emptyDesc)
-		assert.ErrorIs(t, err, errors.ErrInvalidDepartmentDescription)
+		assertInvalidDepartmentField(t, err, errors.DepartmentFieldDescription)
 	})
 
 	t.Run("TooLongDescription", func(t *testing.T) {
@@ -124,7 +138,7 @@ func TestDepartment_NewDepartment(t *testing.T) {
 		longDesc := strings.Repeat("A", 2001)
 
 		_, err := model.NewDepartment(id, clinicID, "Department", &longDesc)
-		assert.ErrorIs(t, err, errors.ErrInvalidDepartmentDescription)
+		assertInvalidDepartmentField(t, err, errors.DepartmentFieldDescription)
 	})
 }
 
@@ -168,12 +182,14 @@ func TestDepartment_UpdateName(t *testing.T) {
 
 	t.Run("InvalidName", func(t *testing.T) {
 		err := dept.UpdateName("")
-		assert.ErrorIs(t, err, errors.ErrInvalidDepartmentName)
+		assertInvalidDepartmentField(t, err, errors.DepartmentFieldName)
+		var tooShortErr *errors.StringTooShortError
+		require.True(t, stderrors.As(err, &tooShortErr))
 		assert.Equal(t, "NewDept", dept.Name) // unchanged
 	})
 }
 
-func TestDepartment_UpdateDescription(t *testing.T) {
+func TestDepartment_SetDescription(t *testing.T) {
 	t.Parallel()
 
 	id := validDeptID()
@@ -182,7 +198,7 @@ func TestDepartment_UpdateDescription(t *testing.T) {
 
 	t.Run("SetDescription", func(t *testing.T) {
 		desc := "A specialized department"
-		err := dept.UpdateDescription(desc)
+		err := dept.SetDescription(desc)
 		require.NoError(t, err)
 		assert.NotNil(t, dept.Description)
 		assert.Equal(t, desc, *dept.Description)
@@ -194,8 +210,10 @@ func TestDepartment_UpdateDescription(t *testing.T) {
 	})
 
 	t.Run("InvalidDescription", func(t *testing.T) {
-		err := dept.UpdateDescription("")
-		assert.ErrorIs(t, err, errors.ErrInvalidDepartmentDescription)
+		err := dept.SetDescription("")
+		assertInvalidDepartmentField(t, err, errors.DepartmentFieldDescription)
+		var tooShortErr *errors.StringTooShortError
+		require.True(t, stderrors.As(err, &tooShortErr))
 	})
 }
 

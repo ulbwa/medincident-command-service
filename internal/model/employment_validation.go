@@ -1,11 +1,6 @@
 package model
 
 import (
-	"errors"
-	"fmt"
-	"strings"
-	"unicode/utf8"
-
 	"github.com/google/uuid"
 
 	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
@@ -16,38 +11,35 @@ const (
 	maxEmploymentPositionLength = 255
 )
 
-func validateEmploymentPosition(position *string) error {
-	if position == nil {
-		return nil
+func validateEmploymentPosition(position string) error {
+	if err := validateStringNoLeadingOrTrailingWhitespace(position); err != nil {
+		return err
 	}
-	if strings.TrimSpace(*position) != *position {
-		return fmt.Errorf("%w: must not have leading or trailing whitespace", errs.ErrInvalidEmploymentPosition)
+	if err := validateStringNoConsecutiveSpaces(position); err != nil {
+		return err
 	}
-	positionLen := utf8.RuneCountInString(*position)
-	if positionLen < minEmploymentPositionLength {
-		return fmt.Errorf("%w: too short (min %d)", errs.ErrInvalidEmploymentPosition, minEmploymentPositionLength)
+	if err := validateStringMinLength(position, minEmploymentPositionLength); err != nil {
+		return err
 	}
-	if positionLen > maxEmploymentPositionLength {
-		return fmt.Errorf("%w: too long (max %d)", errs.ErrInvalidEmploymentPosition, maxEmploymentPositionLength)
+	if err := validateStringMaxLength(position, maxEmploymentPositionLength); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateEmploymentDeputy(deputy EmploymentDeputy) error {
+	if err := validateUserID(deputy.ID); err != nil {
+		return errs.NewInvalidEmploymentDeputyError(errs.EmploymentDeputyFieldID, err)
 	}
 	return nil
 }
 
 func validateDeputyID(deputyID int64) error {
-	if err := validateUserID(deputyID); err != nil {
-		return errors.Join(errs.ErrInvalidEmploymentDeputy, err)
-	}
-	return nil
+	return validateEmploymentDeputy(EmploymentDeputy{ID: deputyID})
 }
 
 func validateEmploymentID(id uuid.UUID) error {
-	if id == uuid.Nil {
-		return fmt.Errorf("%w: required", errs.ErrInvalidEmploymentID)
-	}
-	if id.Version() != 7 {
-		return fmt.Errorf("%w: must be a UUIDv7", errs.ErrInvalidEmploymentID)
-	}
-	return nil
+	return validateUUIDv7(id)
 }
 
 func validateEmploymentVacation(vacation *EmploymentVacation) error {
@@ -55,43 +47,50 @@ func validateEmploymentVacation(vacation *EmploymentVacation) error {
 		return nil
 	}
 	if vacation.StartsAt.IsZero() {
-		return fmt.Errorf("%w: start date is required", errs.ErrInvalidEmploymentVacation)
+		return errs.NewInvalidEmploymentVacationError(errs.EmploymentVacationFieldStartsAt, errs.NewValueRequiredError())
 	}
-	if vacation.EndsAt != nil && vacation.EndsAt.Before(vacation.StartsAt) {
-		return fmt.Errorf("%w: end date must be after start date", errs.ErrInvalidEmploymentVacation)
+	if vacation.EndsAt != nil {
+		if err := validateTimestampNotBefore(*vacation.EndsAt, vacation.StartsAt); err != nil {
+			return errs.NewInvalidEmploymentVacationError(errs.EmploymentVacationFieldEndsAt, err)
+		}
 	}
 	return nil
 }
 
 func validateEmployment(e *Employment) error {
 	if err := validateEmploymentID(e.ID); err != nil {
-		return err
+		return errs.NewInvalidEmploymentError(errs.EmploymentFieldID, err)
 	}
 	if err := validateUserID(e.UserID); err != nil {
-		return err
+		return errs.NewInvalidEmploymentError(errs.EmploymentFieldUserID, err)
 	}
 	if e.AssignedAt.IsZero() {
-		return fmt.Errorf("%w: must not be zero", errs.ErrInvalidEmploymentAssignedAt)
+		return errs.NewInvalidEmploymentError(errs.EmploymentFieldAssignedAt, errs.NewValueRequiredError())
 	}
 	if err := validateOrganizationID(e.OrganizationID); err != nil {
-		return err
+		return errs.NewInvalidEmploymentError(errs.EmploymentFieldOrganizationID, err)
 	}
 	if err := validateClinicID(e.ClinicID); err != nil {
-		return err
+		return errs.NewInvalidEmploymentError(errs.EmploymentFieldClinicID, err)
 	}
 	if err := validateDepartmentID(e.DepartmentID); err != nil {
-		return err
+		return errs.NewInvalidEmploymentError(errs.EmploymentFieldDepartmentID, err)
 	}
-	if err := validateEmploymentPosition(e.Position); err != nil {
-		return err
+	if e.Position != nil {
+		if err := validateEmploymentPosition(*e.Position); err != nil {
+			return errs.NewInvalidEmploymentError(errs.EmploymentFieldPosition, err)
+		}
 	}
 	if e.Deputy != nil {
-		if err := validateDeputyID(e.Deputy.ID); err != nil {
-			return err
+		if err := validateEmploymentDeputy(*e.Deputy); err != nil {
+			return errs.NewInvalidEmploymentError(errs.EmploymentFieldDeputy, err)
+		}
+		if e.Deputy.ID == e.UserID {
+			return errs.NewInvalidEmploymentError(errs.EmploymentFieldDeputy, errs.ErrUserCannotBeOwnDeputy)
 		}
 	}
 	if err := validateEmploymentVacation(e.Vacation); err != nil {
-		return err
+		return errs.NewInvalidEmploymentError(errs.EmploymentFieldVacation, err)
 	}
 	return nil
 }

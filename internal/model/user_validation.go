@@ -1,9 +1,7 @@
 package model
 
 import (
-	"fmt"
-	"strings"
-	"unicode/utf8"
+	"github.com/google/uuid"
 
 	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
 )
@@ -14,96 +12,130 @@ const (
 )
 
 func validateUserName(name UserName) error {
-	if strings.TrimSpace(name.GivenName) != name.GivenName {
-		return fmt.Errorf("%w: must not have leading or trailing whitespace", errs.ErrInvalidUserGivenName)
+	if err := validateStringNoLeadingOrTrailingWhitespace(name.GivenName); err != nil {
+		return errs.NewInvalidUserNameError(errs.UserNameFieldGivenName, err)
 	}
-	givenNameLen := utf8.RuneCountInString(name.GivenName)
-	if givenNameLen < minUserNameLength {
-		return fmt.Errorf("%w: too short (min %d)", errs.ErrInvalidUserGivenName, minUserNameLength)
+	if err := validateStringNoConsecutiveSpaces(name.GivenName); err != nil {
+		return errs.NewInvalidUserNameError(errs.UserNameFieldGivenName, err)
 	}
-	if givenNameLen > maxUserNameLength {
-		return fmt.Errorf("%w: too long (max %d)", errs.ErrInvalidUserGivenName, maxUserNameLength)
+	if err := validateStringMinLength(name.GivenName, minUserNameLength); err != nil {
+		return errs.NewInvalidUserNameError(errs.UserNameFieldGivenName, err)
+	}
+	if err := validateStringMaxLength(name.GivenName, maxUserNameLength); err != nil {
+		return errs.NewInvalidUserNameError(errs.UserNameFieldGivenName, err)
 	}
 
-	if strings.TrimSpace(name.FamilyName) != name.FamilyName {
-		return fmt.Errorf("%w: must not have leading or trailing whitespace", errs.ErrInvalidUserFamilyName)
+	if err := validateStringNoLeadingOrTrailingWhitespace(name.FamilyName); err != nil {
+		return errs.NewInvalidUserNameError(errs.UserNameFieldFamilyName, err)
 	}
-	familyNameLen := utf8.RuneCountInString(name.FamilyName)
-	if familyNameLen < minUserNameLength {
-		return fmt.Errorf("%w: too short (min %d)", errs.ErrInvalidUserFamilyName, minUserNameLength)
+	if err := validateStringNoConsecutiveSpaces(name.FamilyName); err != nil {
+		return errs.NewInvalidUserNameError(errs.UserNameFieldFamilyName, err)
 	}
-	if familyNameLen > maxUserNameLength {
-		return fmt.Errorf("%w: too long (max %d)", errs.ErrInvalidUserFamilyName, maxUserNameLength)
+	if err := validateStringMinLength(name.FamilyName, minUserNameLength); err != nil {
+		return errs.NewInvalidUserNameError(errs.UserNameFieldFamilyName, err)
+	}
+	if err := validateStringMaxLength(name.FamilyName, maxUserNameLength); err != nil {
+		return errs.NewInvalidUserNameError(errs.UserNameFieldFamilyName, err)
 	}
 
 	if name.MiddleName != nil {
-		if strings.TrimSpace(*name.MiddleName) != *name.MiddleName {
-			return fmt.Errorf("%w: must not have leading or trailing whitespace", errs.ErrInvalidUserMiddleName)
+		if err := validateStringNoLeadingOrTrailingWhitespace(*name.MiddleName); err != nil {
+			return errs.NewInvalidUserNameError(errs.UserNameFieldMiddleName, err)
 		}
-		middleNameLen := utf8.RuneCountInString(*name.MiddleName)
-		if middleNameLen < minUserNameLength {
-			return fmt.Errorf("%w: too short (min %d)", errs.ErrInvalidUserMiddleName, minUserNameLength)
+		if err := validateStringNoConsecutiveSpaces(*name.MiddleName); err != nil {
+			return errs.NewInvalidUserNameError(errs.UserNameFieldMiddleName, err)
 		}
-		if middleNameLen > maxUserNameLength {
-			return fmt.Errorf("%w: too long (max %d)", errs.ErrInvalidUserMiddleName, maxUserNameLength)
+		if err := validateStringMinLength(*name.MiddleName, minUserNameLength); err != nil {
+			return errs.NewInvalidUserNameError(errs.UserNameFieldMiddleName, err)
+		}
+		if err := validateStringMaxLength(*name.MiddleName, maxUserNameLength); err != nil {
+			return errs.NewInvalidUserNameError(errs.UserNameFieldMiddleName, err)
 		}
 	}
+
 	return nil
 }
 
-// validateUserID checks that the user ID is a valid Snowflake ID from Zitadel
+// validateUserID checks that the user ID is a valid Snowflake ID from Zitadel.
 func validateUserID(id int64) error {
-	if id <= 0 {
-		return fmt.Errorf("%w: must be greater than zero", errs.ErrInvalidUserID)
-	}
-	// Check that the timestamp component of the Snowflake ID is greater than zero
-	if (id >> 22) <= 0 {
-		return fmt.Errorf("%w: timestamp component must be greater than zero", errs.ErrInvalidUserID)
-	}
-	return nil
+	return validateSnowflakeID(id)
 }
 
 func validateAdminRole(adminRole AdminRole) error {
 	if adminRole.GrantedAt.IsZero() {
-		return fmt.Errorf("%w: must not be zero for admin user", errs.ErrInvalidAdminRoleSince)
+		return errs.NewInvalidAdminRoleError(errs.AdminRoleFieldGrantedAt, errs.NewValueRequiredError())
 	}
-
 	if err := validateUserID(adminRole.GrantedBy); err != nil {
-		return fmt.Errorf("%w: %w", errs.ErrInvalidAdminRoleGranterID, err)
+		return errs.NewInvalidAdminRoleError(errs.AdminRoleFieldGrantedBy, err)
 	}
-
 	return nil
 }
 
 func validateUser(u *User) error {
 	if err := validateUserID(u.ID); err != nil {
-		return err
+		return errs.NewInvalidUserError(errs.UserFieldID, err)
 	}
 	if err := validateUserName(u.Name); err != nil {
-		return err
+		return errs.NewInvalidUserError(errs.UserFieldName, err)
 	}
 	if u.CustomName != nil {
 		if err := validateUserName(*u.CustomName); err != nil {
-			return err
+			return errs.NewInvalidUserError(errs.UserFieldCustomName, err)
 		}
 	}
 	if u.AdminRole != nil {
 		if err := validateAdminRole(*u.AdminRole); err != nil {
-			return err
+			return errs.NewInvalidUserError(errs.UserFieldAdminRole, err)
 		}
 	}
+	if err := validateUserEmployments(u); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateUserEmployments(u *User) error {
+	organizationIndexes := make(map[uuid.UUID]int, len(u.Employments))
+
 	for index, employment := range u.Employments {
 		if employment == nil {
-			return fmt.Errorf("%w: employment index %d is nil", errs.ErrInvalidUserEmployment, index)
+			return errs.NewInvalidUserError(
+				errs.UserFieldEmployments,
+				errs.NewInvalidCollectionItemError(index, errs.NewValueRequiredError()),
+			)
 		}
+
+		if _, exists := organizationIndexes[employment.OrganizationID]; exists {
+			return errs.NewInvalidUserError(
+				errs.UserFieldEmployments,
+				errs.NewInvalidCollectionItemError(
+					index,
+					errs.NewInvalidEmploymentError(
+						errs.EmploymentFieldOrganizationID,
+						errs.NewValueDuplicateError(employment.OrganizationID),
+					),
+				),
+			)
+		}
+		organizationIndexes[employment.OrganizationID] = index
+
 		if err := validateEmployment(employment); err != nil {
-			return err
+			return errs.NewInvalidUserError(
+				errs.UserFieldEmployments,
+				errs.NewInvalidCollectionItemError(index, err),
+			)
 		}
 		if employment.UserID != u.ID {
-			return fmt.Errorf("%w: employment index %d: expected %d, got %d", errs.ErrInvalidEmploymentUserID, index, u.ID, employment.UserID)
-		}
-		if employment.Deputy != nil && employment.Deputy.ID == u.ID {
-			return fmt.Errorf("%w: user cannot be their own deputy", errs.ErrInvalidEmploymentDeputy)
+			return errs.NewInvalidUserError(
+				errs.UserFieldEmployments,
+				errs.NewInvalidCollectionItemError(
+					index,
+					errs.NewInvalidEmploymentError(
+						errs.EmploymentFieldUserID,
+						errs.NewValueMismatchError(u.ID, employment.UserID),
+					),
+				),
+			)
 		}
 	}
 	return nil

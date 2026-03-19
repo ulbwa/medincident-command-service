@@ -259,9 +259,7 @@ func (s *Service) ClearCustomName(ctx context.Context, req *ClearCustomNameReque
 			return fmt.Errorf("failed to get user: %w", err)
 		}
 
-		if err := u.RemoveCustomName(); err != nil {
-			return err
-		}
+		u.RemoveCustomName()
 
 		if err := s.repo.Save(txCtx, u); err != nil {
 			return fmt.Errorf("failed to save user: %w", err)
@@ -305,7 +303,7 @@ func (s *Service) GrantAdminRole(ctx context.Context, req *GrantAdminRoleRequest
 		if err != nil {
 			return fmt.Errorf("failed to get actor: %w", err)
 		}
-		if err := actor.CanGrantAdminRole(); err != nil {
+		if err := actor.CanManageAdminRole(); err != nil {
 			return err
 		}
 
@@ -357,7 +355,7 @@ func (s *Service) RevokeAdminRole(ctx context.Context, req *RevokeAdminRoleReque
 		if err != nil {
 			return fmt.Errorf("failed to get actor: %w", err)
 		}
-		if err := actor.CanGrantAdminRole(); err != nil {
+		if err := actor.CanManageAdminRole(); err != nil {
 			return err
 		}
 
