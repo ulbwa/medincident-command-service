@@ -1,6 +1,7 @@
 package tests
 
 import (
+	stderrors "errors"
 	"strings"
 	"testing"
 
@@ -20,6 +21,13 @@ func validClinicID() uuid.UUID {
 func validClinicAddress() model.Address {
 	addr, _ := model.NewAddress("Moscow, Clinic Street, 10", nil)
 	return addr
+}
+
+func assertInvalidClinicField(t *testing.T, err error, field errors.ClinicField) {
+	t.Helper()
+	var clinicErr *errors.InvalidClinicError
+	require.True(t, stderrors.As(err, &clinicErr))
+	assert.Equal(t, field, clinicErr.Field)
 }
 
 func TestClinic_NewClinic(t *testing.T) {
@@ -59,7 +67,10 @@ func TestClinic_NewClinic(t *testing.T) {
 		addr := validClinicAddress()
 
 		_, err := model.NewClinic(uuid.Nil, orgID, "Clinic", nil, addr)
-		assert.ErrorIs(t, err, errors.ErrInvalidClinicID)
+		assertInvalidClinicField(t, err, errors.ClinicFieldID)
+		var uuidErr *errors.InvalidUUIDError
+		require.True(t, stderrors.As(err, &uuidErr))
+		assert.Equal(t, errors.UUIDValidationReasonRequired, uuidErr.Reason)
 	})
 
 	t.Run("InvalidUUIDVersion", func(t *testing.T) {
@@ -69,7 +80,10 @@ func TestClinic_NewClinic(t *testing.T) {
 		id := uuid.New() // v4
 
 		_, err := model.NewClinic(id, orgID, "Clinic", nil, addr)
-		assert.ErrorIs(t, err, errors.ErrInvalidClinicID)
+		assertInvalidClinicField(t, err, errors.ClinicFieldID)
+		var uuidErr *errors.InvalidUUIDError
+		require.True(t, stderrors.As(err, &uuidErr))
+		assert.Equal(t, errors.UUIDValidationReasonInvalidVersion, uuidErr.Reason)
 	})
 
 	t.Run("NilOrganizationID", func(t *testing.T) {
@@ -78,7 +92,7 @@ func TestClinic_NewClinic(t *testing.T) {
 		addr := validClinicAddress()
 
 		_, err := model.NewClinic(id, uuid.Nil, "Clinic", nil, addr)
-		assert.ErrorIs(t, err, errors.ErrInvalidOrganizationID)
+		assertInvalidClinicField(t, err, errors.ClinicFieldOrganizationID)
 	})
 
 	t.Run("InvalidOrganizationUUIDVersion", func(t *testing.T) {
@@ -88,7 +102,7 @@ func TestClinic_NewClinic(t *testing.T) {
 		orgID := uuid.New() // v4
 
 		_, err := model.NewClinic(id, orgID, "Clinic", nil, addr)
-		assert.ErrorIs(t, err, errors.ErrInvalidOrganizationID)
+		assertInvalidClinicField(t, err, errors.ClinicFieldOrganizationID)
 	})
 
 	t.Run("EmptyName", func(t *testing.T) {
@@ -98,7 +112,7 @@ func TestClinic_NewClinic(t *testing.T) {
 		addr := validClinicAddress()
 
 		_, err := model.NewClinic(id, orgID, "", nil, addr)
-		assert.ErrorIs(t, err, errors.ErrInvalidClinicName)
+		assertInvalidClinicField(t, err, errors.ClinicFieldName)
 	})
 
 	t.Run("TooLongName", func(t *testing.T) {
@@ -109,7 +123,7 @@ func TestClinic_NewClinic(t *testing.T) {
 		longName := strings.Repeat("A", 256)
 
 		_, err := model.NewClinic(id, orgID, longName, nil, addr)
-		assert.ErrorIs(t, err, errors.ErrInvalidClinicName)
+		assertInvalidClinicField(t, err, errors.ClinicFieldName)
 	})
 
 	t.Run("NameWithTrailingWhitespace", func(t *testing.T) {
@@ -119,7 +133,7 @@ func TestClinic_NewClinic(t *testing.T) {
 		addr := validClinicAddress()
 
 		_, err := model.NewClinic(id, orgID, "Clinic ", nil, addr)
-		assert.ErrorIs(t, err, errors.ErrInvalidClinicName)
+		assertInvalidClinicField(t, err, errors.ClinicFieldName)
 	})
 
 	t.Run("EmptyDescription", func(t *testing.T) {
@@ -130,7 +144,7 @@ func TestClinic_NewClinic(t *testing.T) {
 		emptyDesc := ""
 
 		_, err := model.NewClinic(id, orgID, "Clinic", &emptyDesc, addr)
-		assert.ErrorIs(t, err, errors.ErrInvalidClinicDescription)
+		assertInvalidClinicField(t, err, errors.ClinicFieldDescription)
 	})
 
 	t.Run("TooLongDescription", func(t *testing.T) {
@@ -141,7 +155,7 @@ func TestClinic_NewClinic(t *testing.T) {
 		longDesc := strings.Repeat("A", 2001)
 
 		_, err := model.NewClinic(id, orgID, "Clinic", &longDesc, addr)
-		assert.ErrorIs(t, err, errors.ErrInvalidClinicDescription)
+		assertInvalidClinicField(t, err, errors.ClinicFieldDescription)
 	})
 
 	t.Run("InvalidPhysicalAddress", func(t *testing.T) {
@@ -151,7 +165,9 @@ func TestClinic_NewClinic(t *testing.T) {
 		invalidAddr := model.Address{Value: "bad", Point: nil}
 
 		_, err := model.NewClinic(id, orgID, "Clinic", nil, invalidAddr)
-		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+		var addressErr *errors.InvalidAddressError
+		require.True(t, stderrors.As(err, &addressErr))
+		assert.Equal(t, errors.AddressFieldValue, addressErr.Field)
 	})
 }
 
@@ -203,12 +219,14 @@ func TestClinic_UpdateName(t *testing.T) {
 
 	t.Run("InvalidName", func(t *testing.T) {
 		err := clinic.UpdateName("")
-		assert.ErrorIs(t, err, errors.ErrInvalidClinicName)
+		assertInvalidClinicField(t, err, errors.ClinicFieldName)
+		var tooShortErr *errors.StringTooShortError
+		require.True(t, stderrors.As(err, &tooShortErr))
 		assert.Equal(t, "NewClinic", clinic.Name) // unchanged
 	})
 }
 
-func TestClinic_UpdateDescription(t *testing.T) {
+func TestClinic_SetDescription(t *testing.T) {
 	t.Parallel()
 
 	id := validClinicID()
@@ -218,7 +236,7 @@ func TestClinic_UpdateDescription(t *testing.T) {
 
 	t.Run("SetDescription", func(t *testing.T) {
 		desc := "A modern clinic"
-		err := clinic.UpdateDescription(desc)
+		err := clinic.SetDescription(desc)
 		require.NoError(t, err)
 		assert.NotNil(t, clinic.Description)
 		assert.Equal(t, desc, *clinic.Description)
@@ -230,8 +248,10 @@ func TestClinic_UpdateDescription(t *testing.T) {
 	})
 
 	t.Run("InvalidDescription", func(t *testing.T) {
-		err := clinic.UpdateDescription("")
-		assert.ErrorIs(t, err, errors.ErrInvalidClinicDescription)
+		err := clinic.SetDescription("")
+		assertInvalidClinicField(t, err, errors.ClinicFieldDescription)
+		var tooShortErr *errors.StringTooShortError
+		require.True(t, stderrors.As(err, &tooShortErr))
 	})
 }
 
@@ -262,7 +282,10 @@ func TestClinic_UpdatePhysicalAddress(t *testing.T) {
 		previousAddr := clinic.PhysicalAddress
 
 		err := clinic.UpdatePhysicalAddress(invalidAddr)
-		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+		assertInvalidClinicField(t, err, errors.ClinicFieldPhysicalAddress)
+		var addressErr *errors.InvalidAddressError
+		require.True(t, stderrors.As(err, &addressErr))
+		assert.Equal(t, errors.AddressFieldValue, addressErr.Field)
 		assert.Equal(t, previousAddr, clinic.PhysicalAddress)
 	})
 }
@@ -288,6 +311,8 @@ func TestClinic_RestoreClinic(t *testing.T) {
 		invalidAddr := model.Address{Value: "bad", Point: nil}
 
 		_, err := model.RestoreClinic(validClinicID(), validOrgID(), "RestoredClinic", nil, invalidAddr)
-		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+		var addressErr *errors.InvalidAddressError
+		require.True(t, stderrors.As(err, &addressErr))
+		assert.Equal(t, errors.AddressFieldValue, addressErr.Field)
 	})
 }

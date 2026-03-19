@@ -1,12 +1,11 @@
 package model
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 
-	"github.com/ulbwa/medincident-command-service/internal/common/errors"
+	errs "github.com/ulbwa/medincident-command-service/internal/common/errors"
 	"github.com/ulbwa/medincident-command-service/pkg/utils"
 )
 
@@ -80,6 +79,8 @@ type Employment struct {
 	Vacation       *EmploymentVacation
 }
 
+const EmploymentVacationMaxScheduleAheadMonths = 6
+
 func NewEmployment(userID int64, organizationID, clinicID, departmentID uuid.UUID, position *string, assignedAt time.Time) (*Employment, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
@@ -146,7 +147,7 @@ func (e Employment) HasScheduledVacation() bool {
 
 func (e *Employment) AssignDeputy(deputyID int64) error {
 	if deputyID == e.UserID {
-		return fmt.Errorf("%w: user cannot be their own deputy", errors.ErrInvalidEmploymentDeputy)
+		return errs.NewInvalidEmploymentError(errs.EmploymentFieldDeputy, errs.ErrUserCannotBeOwnDeputy)
 	}
 
 	if e.Deputy != nil && e.Deputy.ID == deputyID {
@@ -155,7 +156,7 @@ func (e *Employment) AssignDeputy(deputyID int64) error {
 
 	deputy, err := NewEmploymentDeputy(deputyID)
 	if err != nil {
-		return err
+		return errs.NewInvalidEmploymentError(errs.EmploymentFieldDeputy, err)
 	}
 	e.Deputy = &deputy
 
@@ -180,23 +181,47 @@ func (e *Employment) RemoveDeputy() {
 	})
 }
 
-func (e *Employment) GrantVacation(endAt *time.Time) error {
-	return e.ScheduleVacation(time.Now().UTC(), endAt)
+func (e *Employment) GrantVacation(endsAt *time.Time) error {
+	now := time.Now().UTC()
+	return e.scheduleVacation(now, now, endsAt)
 }
 
 func (e *Employment) ScheduleVacation(startsAt time.Time, endsAt *time.Time) error {
-	vacation, err := NewEmploymentVacation(startsAt, endsAt)
-	if err != nil {
-		return err
+	now := time.Now().UTC()
+
+	if startsAt.IsZero() {
+		return errs.NewInvalidEmploymentError(
+			errs.EmploymentFieldVacation,
+			errs.NewInvalidEmploymentVacationError(errs.EmploymentVacationFieldStartsAt, errs.NewValueRequiredError()),
+		)
 	}
 
-	if e.Vacation != nil && e.Vacation.StartsAt.Equal(vacation.StartsAt) {
-		if e.Vacation.EndsAt == nil && vacation.EndsAt == nil {
-			return nil
-		}
-		if e.Vacation.EndsAt != nil && vacation.EndsAt != nil && e.Vacation.EndsAt.Equal(*vacation.EndsAt) {
-			return nil
-		}
+	if err := validateTimestampNotBefore(startsAt, now); err != nil {
+		return errs.NewInvalidEmploymentError(
+			errs.EmploymentFieldVacation,
+			errs.NewInvalidEmploymentVacationError(errs.EmploymentVacationFieldStartsAt, err),
+		)
+	}
+
+	return e.scheduleVacation(now, startsAt, endsAt)
+}
+
+func (e *Employment) scheduleVacation(now, startsAt time.Time, endsAt *time.Time) error {
+	if e.Vacation != nil {
+		return errs.NewInvalidEmploymentError(errs.EmploymentFieldVacation, errs.ErrEmploymentVacationAlreadyExists)
+	}
+
+	maximum := now.AddDate(0, EmploymentVacationMaxScheduleAheadMonths, 0)
+	if err := validateTimestampNotAfter(startsAt, maximum); err != nil {
+		return errs.NewInvalidEmploymentError(
+			errs.EmploymentFieldVacation,
+			errs.NewInvalidEmploymentVacationError(errs.EmploymentVacationFieldStartsAt, err),
+		)
+	}
+
+	vacation, err := NewEmploymentVacation(startsAt, endsAt)
+	if err != nil {
+		return errs.NewInvalidEmploymentError(errs.EmploymentFieldVacation, err)
 	}
 
 	e.Vacation = &vacation

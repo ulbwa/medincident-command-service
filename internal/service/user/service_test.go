@@ -196,7 +196,7 @@ func TestService_GrantAdminRole(t *testing.T) {
 			ActorID:      actorID,
 			TargetUserID: userID,
 		})
-		assert.ErrorIs(t, err, errors.ErrAdminRoleGrantForbidden)
+		assert.ErrorIs(t, err, errors.ErrAdminRoleGrantActorNotAdmin)
 	})
 
 	t.Run("Unauthorized_NewAdmin", func(t *testing.T) {
@@ -226,7 +226,7 @@ func TestService_GrantAdminRole(t *testing.T) {
 			ActorID:      actorID,
 			TargetUserID: userID,
 		})
-		assert.ErrorIs(t, err, errors.ErrAdminRoleGrantForbidden)
+		assert.ErrorIs(t, err, errors.ErrAdminRoleGrantInsufficientTenure)
 	})
 }
 
@@ -311,7 +311,7 @@ func TestService_RevokeAdminRole(t *testing.T) {
 			ActorID:      actorID,
 			TargetUserID: userID,
 		})
-		assert.ErrorIs(t, err, errors.ErrAdminRoleGrantForbidden)
+		assert.ErrorIs(t, err, errors.ErrAdminRoleGrantActorNotAdmin)
 	})
 
 	t.Run("Unauthorized_NewAdmin_Revoke", func(t *testing.T) {
@@ -341,7 +341,7 @@ func TestService_RevokeAdminRole(t *testing.T) {
 			ActorID:      actorID,
 			TargetUserID: userID,
 		})
-		assert.ErrorIs(t, err, errors.ErrAdminRoleGrantForbidden)
+		assert.ErrorIs(t, err, errors.ErrAdminRoleGrantInsufficientTenure)
 	})
 }
 

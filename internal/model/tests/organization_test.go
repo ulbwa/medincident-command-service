@@ -1,6 +1,7 @@
 package tests
 
 import (
+	stderrors "errors"
 	"strings"
 	"testing"
 
@@ -20,6 +21,13 @@ func validOrgID() uuid.UUID {
 func validAddress() model.Address {
 	addr, _ := model.NewAddress("Moscow, Red Square, 1", nil)
 	return addr
+}
+
+func assertInvalidOrganizationField(t *testing.T, err error, field errors.OrganizationField) {
+	t.Helper()
+	var organizationErr *errors.InvalidOrganizationError
+	require.True(t, stderrors.As(err, &organizationErr))
+	assert.Equal(t, field, organizationErr.Field)
 }
 
 func TestOrganization_NewOrganization(t *testing.T) {
@@ -55,7 +63,10 @@ func TestOrganization_NewOrganization(t *testing.T) {
 		addr := validAddress()
 
 		_, err := model.NewOrganization(uuid.Nil, "MedCorp Inc", nil, addr)
-		assert.ErrorIs(t, err, errors.ErrInvalidOrganizationID)
+		assertInvalidOrganizationField(t, err, errors.OrganizationFieldID)
+		var uuidErr *errors.InvalidUUIDError
+		require.True(t, stderrors.As(err, &uuidErr))
+		assert.Equal(t, errors.UUIDValidationReasonRequired, uuidErr.Reason)
 	})
 
 	t.Run("InvalidUUIDVersion", func(t *testing.T) {
@@ -64,7 +75,13 @@ func TestOrganization_NewOrganization(t *testing.T) {
 		id := uuid.New() // v4
 
 		_, err := model.NewOrganization(id, "MedCorp Inc", nil, addr)
-		assert.ErrorIs(t, err, errors.ErrInvalidOrganizationID)
+		assertInvalidOrganizationField(t, err, errors.OrganizationFieldID)
+		var uuidErr *errors.InvalidUUIDError
+		require.True(t, stderrors.As(err, &uuidErr))
+		assert.Equal(t, errors.UUIDValidationReasonInvalidVersion, uuidErr.Reason)
+
+		assert.Equal(t, uuid.Version(7), uuidErr.Details.ExpectedVersion)
+		assert.Equal(t, uuid.Version(4), uuidErr.Details.ActualVersion)
 	})
 
 	t.Run("EmptyName", func(t *testing.T) {
@@ -73,7 +90,7 @@ func TestOrganization_NewOrganization(t *testing.T) {
 		addr := validAddress()
 
 		_, err := model.NewOrganization(id, "", nil, addr)
-		assert.ErrorIs(t, err, errors.ErrInvalidOrganizationName)
+		assertInvalidOrganizationField(t, err, errors.OrganizationFieldName)
 	})
 
 	t.Run("TooLongName", func(t *testing.T) {
@@ -83,7 +100,7 @@ func TestOrganization_NewOrganization(t *testing.T) {
 		longName := strings.Repeat("A", 256)
 
 		_, err := model.NewOrganization(id, longName, nil, addr)
-		assert.ErrorIs(t, err, errors.ErrInvalidOrganizationName)
+		assertInvalidOrganizationField(t, err, errors.OrganizationFieldName)
 	})
 
 	t.Run("NameWithLeadingWhitespace", func(t *testing.T) {
@@ -92,7 +109,7 @@ func TestOrganization_NewOrganization(t *testing.T) {
 		addr := validAddress()
 
 		_, err := model.NewOrganization(id, " MedCorp", nil, addr)
-		assert.ErrorIs(t, err, errors.ErrInvalidOrganizationName)
+		assertInvalidOrganizationField(t, err, errors.OrganizationFieldName)
 	})
 
 	t.Run("EmptyDescription", func(t *testing.T) {
@@ -102,7 +119,7 @@ func TestOrganization_NewOrganization(t *testing.T) {
 		emptyDesc := ""
 
 		_, err := model.NewOrganization(id, "MedCorp Inc", &emptyDesc, addr)
-		assert.ErrorIs(t, err, errors.ErrInvalidOrganizationDescription)
+		assertInvalidOrganizationField(t, err, errors.OrganizationFieldDescription)
 	})
 
 	t.Run("TooLongDescription", func(t *testing.T) {
@@ -112,7 +129,7 @@ func TestOrganization_NewOrganization(t *testing.T) {
 		longDesc := strings.Repeat("A", 2001)
 
 		_, err := model.NewOrganization(id, "MedCorp Inc", &longDesc, addr)
-		assert.ErrorIs(t, err, errors.ErrInvalidOrganizationDescription)
+		assertInvalidOrganizationField(t, err, errors.OrganizationFieldDescription)
 	})
 
 	t.Run("InvalidLegalAddress", func(t *testing.T) {
@@ -121,7 +138,9 @@ func TestOrganization_NewOrganization(t *testing.T) {
 		invalidAddr := model.Address{Value: "bad", Point: nil}
 
 		_, err := model.NewOrganization(id, "MedCorp Inc", nil, invalidAddr)
-		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+		var addressErr *errors.InvalidAddressError
+		require.True(t, stderrors.As(err, &addressErr))
+		assert.Equal(t, errors.AddressFieldValue, addressErr.Field)
 	})
 }
 
@@ -172,12 +191,14 @@ func TestOrganization_UpdateName(t *testing.T) {
 
 	t.Run("InvalidName", func(t *testing.T) {
 		err := org.UpdateName("")
-		assert.ErrorIs(t, err, errors.ErrInvalidOrganizationName)
+		assertInvalidOrganizationField(t, err, errors.OrganizationFieldName)
+		var tooShortErr *errors.StringTooShortError
+		require.True(t, stderrors.As(err, &tooShortErr))
 		assert.Equal(t, "NewName", org.Name) // unchanged
 	})
 }
 
-func TestOrganization_UpdateDescription(t *testing.T) {
+func TestOrganization_SetDescription(t *testing.T) {
 	t.Parallel()
 
 	id := validOrgID()
@@ -186,7 +207,7 @@ func TestOrganization_UpdateDescription(t *testing.T) {
 
 	t.Run("SetDescription", func(t *testing.T) {
 		desc := "A great organization"
-		err := org.UpdateDescription(desc)
+		err := org.SetDescription(desc)
 		require.NoError(t, err)
 		assert.NotNil(t, org.Description)
 		assert.Equal(t, desc, *org.Description)
@@ -203,8 +224,10 @@ func TestOrganization_UpdateDescription(t *testing.T) {
 	})
 
 	t.Run("InvalidDescription", func(t *testing.T) {
-		err := org.UpdateDescription("")
-		assert.ErrorIs(t, err, errors.ErrInvalidOrganizationDescription)
+		err := org.SetDescription("")
+		assertInvalidOrganizationField(t, err, errors.OrganizationFieldDescription)
+		var tooShortErr *errors.StringTooShortError
+		require.True(t, stderrors.As(err, &tooShortErr))
 	})
 }
 
@@ -234,7 +257,10 @@ func TestOrganization_UpdateLegalAddress(t *testing.T) {
 		previousAddr := org.LegalAddress
 
 		err := org.UpdateLegalAddress(invalidAddr)
-		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+		assertInvalidOrganizationField(t, err, errors.OrganizationFieldLegalAddress)
+		var addressErr *errors.InvalidAddressError
+		require.True(t, stderrors.As(err, &addressErr))
+		assert.Equal(t, errors.AddressFieldValue, addressErr.Field)
 		assert.Equal(t, previousAddr, org.LegalAddress)
 	})
 }
@@ -258,6 +284,8 @@ func TestOrganization_RestoreOrganization(t *testing.T) {
 		invalidAddr := model.Address{Value: "bad", Point: nil}
 
 		_, err := model.RestoreOrganization(validOrgID(), "RestoredOrg", nil, invalidAddr)
-		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+		var addressErr *errors.InvalidAddressError
+		require.True(t, stderrors.As(err, &addressErr))
+		assert.Equal(t, errors.AddressFieldValue, addressErr.Field)
 	})
 }

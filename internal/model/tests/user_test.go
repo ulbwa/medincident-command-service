@@ -1,6 +1,7 @@
 package tests
 
 import (
+	stderrors "errors"
 	"testing"
 	"time"
 
@@ -96,20 +97,59 @@ func TestNewUserName_Validation(t *testing.T) {
 
 	// Invalid Given Name (Empty)
 	_, err = model.NewUserName("", "Ivanov", nil)
-	assert.ErrorIs(t, err, errors.ErrInvalidUserGivenName)
+	var givenNameErr *errors.InvalidUserNameError
+	require.True(t, stderrors.As(err, &givenNameErr))
+	assert.Equal(t, errors.UserNameFieldGivenName, givenNameErr.Field)
+	var givenNameTooShortErr *errors.StringTooShortError
+	require.True(t, stderrors.As(givenNameErr.Reason, &givenNameTooShortErr))
+	assert.Equal(t, 1, givenNameTooShortErr.MinLength)
+	assert.Equal(t, 0, givenNameTooShortErr.ActualLength)
 
 	// Invalid Family Name (Empty)
 	_, err = model.NewUserName("Ivan", "", nil)
-	assert.ErrorIs(t, err, errors.ErrInvalidUserFamilyName)
+	var familyNameErr *errors.InvalidUserNameError
+	require.True(t, stderrors.As(err, &familyNameErr))
+	assert.Equal(t, errors.UserNameFieldFamilyName, familyNameErr.Field)
+	var familyNameTooShortErr *errors.StringTooShortError
+	require.True(t, stderrors.As(familyNameErr.Reason, &familyNameTooShortErr))
+	assert.Equal(t, 1, familyNameTooShortErr.MinLength)
+	assert.Equal(t, 0, familyNameTooShortErr.ActualLength)
 
 	// Invalid Middle Name (Empty str pointer)
 	_, err = model.NewUserName("Ivan", "Ivanov", ptr(""))
-	assert.ErrorIs(t, err, errors.ErrInvalidUserMiddleName)
+	var middleNameErr *errors.InvalidUserNameError
+	require.True(t, stderrors.As(err, &middleNameErr))
+	assert.Equal(t, errors.UserNameFieldMiddleName, middleNameErr.Field)
+	var middleNameTooShortErr *errors.StringTooShortError
+	require.True(t, stderrors.As(middleNameErr.Reason, &middleNameTooShortErr))
+	assert.Equal(t, 1, middleNameTooShortErr.MinLength)
+	assert.Equal(t, 0, middleNameTooShortErr.ActualLength)
 
 	// Too long names (> 100)
 	longName := string(make([]byte, 101))
 	_, err = model.NewUserName(longName, "Ivanov", nil)
-	assert.ErrorIs(t, err, errors.ErrInvalidUserGivenName)
+	var longNameErr *errors.InvalidUserNameError
+	require.True(t, stderrors.As(err, &longNameErr))
+	assert.Equal(t, errors.UserNameFieldGivenName, longNameErr.Field)
+	var longNameTooLongErr *errors.StringTooLongError
+	require.True(t, stderrors.As(longNameErr.Reason, &longNameTooLongErr))
+	assert.Equal(t, 100, longNameTooLongErr.MaxLength)
+	assert.Equal(t, 101, longNameTooLongErr.ActualLength)
+}
+
+func TestNewUserName_ValidationWhitespaceDetails(t *testing.T) {
+	t.Parallel()
+
+	_, err := model.NewUserName(" Ivan", "Ivanov", nil)
+	require.Error(t, err)
+
+	var nameErr *errors.InvalidUserNameError
+	require.True(t, stderrors.As(err, &nameErr))
+	assert.Equal(t, errors.UserNameFieldGivenName, nameErr.Field)
+	var wsErr *errors.StringLeadingOrTrailingWhitespaceError
+	require.True(t, stderrors.As(nameErr.Reason, &wsErr))
+	assert.Equal(t, " Ivan", wsErr.ActualValue)
+	assert.Equal(t, "invalid user name field givenName: string has leading or trailing whitespace: expected \"Ivan\", got \" Ivan\"", err.Error())
 }
 
 func TestUser_CreationAndEvents(t *testing.T) {
@@ -133,11 +173,22 @@ func TestUser_CreationAndEvents(t *testing.T) {
 
 	// Invalid ID validation check
 	_, err = model.NewUser(0, un)
-	assert.ErrorIs(t, err, errors.ErrInvalidUserID)
+	var invalidUserErr *errors.InvalidUserError
+	require.True(t, stderrors.As(err, &invalidUserErr))
+	assert.Equal(t, errors.UserFieldID, invalidUserErr.Field)
+	var nonPositiveSnowflakeErr *errors.InvalidSnowflakeIDError
+	require.True(t, stderrors.As(err, &nonPositiveSnowflakeErr))
+	assert.Equal(t, errors.SnowflakeValidationReasonMustBePositive, nonPositiveSnowflakeErr.Reason)
+	assert.Equal(t, int64(0), nonPositiveSnowflakeErr.Details.ActualValue)
 
 	// Invalid snowflake without timestamp
 	_, err = model.NewUser(1<<20, un)
-	assert.ErrorIs(t, err, errors.ErrInvalidUserID)
+	require.True(t, stderrors.As(err, &invalidUserErr))
+	assert.Equal(t, errors.UserFieldID, invalidUserErr.Field)
+	var invalidTimestampSnowflakeErr *errors.InvalidSnowflakeIDError
+	require.True(t, stderrors.As(err, &invalidTimestampSnowflakeErr))
+	assert.Equal(t, errors.SnowflakeValidationReasonInvalidTimestampPart, invalidTimestampSnowflakeErr.Reason)
+	assert.Equal(t, int64(0), invalidTimestampSnowflakeErr.Details.TimestampComponent)
 }
 
 func TestUser_Name_AvoidAliasing(t *testing.T) {
@@ -180,9 +231,10 @@ func TestUser_RemoveCustomName(t *testing.T) {
 	user, _ := model.NewUser(validUserID, un)
 	user.PopEvents() // Clear initial event
 
-	// Error if already clear
-	err := user.RemoveCustomName()
-	assert.ErrorIs(t, err, errors.ErrUserCustomNameAlreadyEmpty)
+	// Idempotent if already nil
+	user.RemoveCustomName()
+	assert.Nil(t, user.CustomName)
+	assert.Empty(t, user.PopEvents())
 
 	// Add custom name directly for test
 	customName, _ := model.NewUserName("Custom", "Name", nil)
@@ -190,8 +242,7 @@ func TestUser_RemoveCustomName(t *testing.T) {
 	user.PopEvents()
 
 	// Clear successfully
-	err = user.RemoveCustomName()
-	require.NoError(t, err)
+	user.RemoveCustomName()
 	assert.Nil(t, user.CustomName)
 
 	events := user.PopEvents()
@@ -228,7 +279,14 @@ func TestUser_OverrideName(t *testing.T) {
 	// Invalid name check
 	invalidCustomName := model.UserName{GivenName: "", FamilyName: "F"}
 	err = user.OverrideName(invalidCustomName)
-	assert.ErrorIs(t, err, errors.ErrInvalidUserGivenName)
+	var invalidUserErr *errors.InvalidUserError
+	require.True(t, stderrors.As(err, &invalidUserErr))
+	assert.Equal(t, errors.UserFieldCustomName, invalidUserErr.Field)
+	var invalidCustomNameErr *errors.InvalidUserNameError
+	require.True(t, stderrors.As(err, &invalidCustomNameErr))
+	assert.Equal(t, errors.UserNameFieldGivenName, invalidCustomNameErr.Field)
+	var invalidCustomNameTooShortErr *errors.StringTooShortError
+	require.True(t, stderrors.As(invalidCustomNameErr.Reason, &invalidCustomNameTooShortErr))
 }
 
 func TestUser_UpdateName(t *testing.T) {
@@ -255,7 +313,14 @@ func TestUser_UpdateName(t *testing.T) {
 	// Validation
 	invalidName := model.UserName{GivenName: "B", FamilyName: ""}
 	err = user.UpdateName(invalidName)
-	assert.ErrorIs(t, err, errors.ErrInvalidUserFamilyName)
+	var invalidUserErr *errors.InvalidUserError
+	require.True(t, stderrors.As(err, &invalidUserErr))
+	assert.Equal(t, errors.UserFieldName, invalidUserErr.Field)
+	var invalidNameErr *errors.InvalidUserNameError
+	require.True(t, stderrors.As(err, &invalidNameErr))
+	assert.Equal(t, errors.UserNameFieldFamilyName, invalidNameErr.Field)
+	var invalidNameTooShortErr *errors.StringTooShortError
+	require.True(t, stderrors.As(invalidNameErr.Reason, &invalidNameTooShortErr))
 }
 
 func TestUser_AdminStatus(t *testing.T) {
@@ -296,7 +361,10 @@ func TestUser_AdminStatus(t *testing.T) {
 
 	// Promote again (idempotent)
 	err = user.GrantAdminRole(actor)
-	require.NoError(t, err)
+	var invalidUserErr *errors.InvalidUserError
+	require.True(t, stderrors.As(err, &invalidUserErr))
+	assert.Equal(t, errors.UserFieldAdminRole, invalidUserErr.Field)
+	assert.ErrorIs(t, err, errors.ErrUserAlreadyAdmin)
 	assert.NotNil(t, user.AdminRole)
 	assert.False(t, user.AdminRole.GrantedAt.IsZero())
 	assert.Equal(t, actor.ID, user.AdminRole.GrantedBy) // Should still be old ID
@@ -315,11 +383,34 @@ func TestUser_AdminStatus(t *testing.T) {
 	assert.False(t, revokeEvent.RevokedAt.IsZero())
 	assert.Equal(t, actor.ID, revokeEvent.RevokedBy)
 
-	// Demote again (idempotent)
+	// Demote again — user is no longer admin, must return error
 	err = user.RevokeAdminRole(actor)
-	require.NoError(t, err)
+	var notAdminErr *errors.InvalidUserError
+	require.True(t, stderrors.As(err, &notAdminErr))
+	assert.Equal(t, errors.UserFieldAdminRole, notAdminErr.Field)
+	assert.ErrorIs(t, err, errors.ErrUserNotAdmin)
 	assert.Nil(t, user.AdminRole)
 	assert.Empty(t, user.PopEvents())
+}
+
+func TestUser_RevokeAdminRole_SelfRevokeForbidden(t *testing.T) {
+	t.Parallel()
+
+	adminName, _ := model.NewUserName("Admin", "User", nil)
+	admin, _ := model.NewUser(validUserID, adminName)
+	admin.AdminRole = &model.AdminRole{
+		GrantedAt: time.Now().UTC().Add(-model.AdminMinimumTenure - time.Hour),
+		GrantedBy: int64(2 << 23),
+	}
+	admin.PopEvents()
+
+	err := admin.RevokeAdminRole(admin)
+	var invalidUserErr *errors.InvalidUserError
+	require.True(t, stderrors.As(err, &invalidUserErr))
+	assert.Equal(t, errors.UserFieldAdminRole, invalidUserErr.Field)
+	assert.ErrorIs(t, err, errors.ErrAdminSelfRevokeForbidden)
+	assert.NotNil(t, admin.AdminRole)
+	assert.Empty(t, admin.PopEvents())
 }
 
 func TestRestoreUser_AdminRoleInvariant(t *testing.T) {
@@ -346,7 +437,14 @@ func TestRestoreUser_AdminRoleInvariant(t *testing.T) {
 			GrantedBy: granterID,
 		}
 		_, err := model.RestoreUser(validUserID, un, nil, adminRole)
-		assert.ErrorIs(t, err, errors.ErrInvalidAdminRoleSince)
+		var invalidUserErr *errors.InvalidUserError
+		require.True(t, stderrors.As(err, &invalidUserErr))
+		assert.Equal(t, errors.UserFieldAdminRole, invalidUserErr.Field)
+		var invalidAdminRoleErr *errors.InvalidAdminRoleError
+		require.True(t, stderrors.As(err, &invalidAdminRoleErr))
+		assert.Equal(t, errors.AdminRoleFieldGrantedAt, invalidAdminRoleErr.Field)
+		var requiredErr *errors.ValueRequiredError
+		require.True(t, stderrors.As(err, &requiredErr))
 	})
 
 	t.Run("ValidAdminRole", func(t *testing.T) {
@@ -431,7 +529,10 @@ func TestUser_EmploymentAsEntity_MultipleEmployments(t *testing.T) {
 	assert.Equal(t, int64(2<<23), deputyAssigned.DeputyID)
 
 	err = firstEmployment.AssignDeputy(validUserID)
-	assert.ErrorIs(t, err, errors.ErrInvalidEmploymentDeputy)
+	var invalidEmploymentErr *errors.InvalidEmploymentError
+	require.True(t, stderrors.As(err, &invalidEmploymentErr))
+	assert.Equal(t, errors.EmploymentFieldDeputy, invalidEmploymentErr.Field)
+	assert.ErrorIs(t, err, errors.ErrUserCannotBeOwnDeputy)
 
 	startsAt := time.Now().UTC().Add(24 * time.Hour)
 	endsAt := startsAt.Add(24 * time.Hour)
@@ -485,6 +586,9 @@ func TestUser_AssignEmployment_SameOrganizationForbidden(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = user.AssignEmployment(organizationID, clinicID, secondDepartmentID, ptr("Second role"))
+	var invalidUserErr *errors.InvalidUserError
+	require.True(t, stderrors.As(err, &invalidUserErr))
+	assert.Equal(t, errors.UserFieldEmployments, invalidUserErr.Field)
 	assert.ErrorIs(t, err, errors.ErrEmploymentAlreadyExistsInOrganization)
 	require.Len(t, user.Employments, 1)
 	require.Len(t, user.PopEvents(), 1)
@@ -522,7 +626,7 @@ func TestUser_AssignEmployment_ClonesPositionPointer(t *testing.T) {
 	assert.NotSame(t, user.Employments[0].Position, employed.Position)
 }
 
-func TestUser_CanGrantAdminRole(t *testing.T) {
+func TestUser_CanManageAdminRole(t *testing.T) {
 	t.Parallel()
 
 	un, _ := model.NewUserName("Admin", "User", nil)
@@ -533,8 +637,8 @@ func TestUser_CanGrantAdminRole(t *testing.T) {
 	t.Run("NotAdmin", func(t *testing.T) {
 		t.Parallel()
 
-		err := actor.CanGrantAdminRole()
-		assert.ErrorIs(t, err, errors.ErrAdminRoleGrantForbidden)
+		err := actor.CanManageAdminRole()
+		assert.ErrorIs(t, err, errors.ErrAdminRoleGrantActorNotAdmin)
 	})
 
 	t.Run("AdminLessThan72Hours", func(t *testing.T) {
@@ -548,8 +652,8 @@ func TestUser_CanGrantAdminRole(t *testing.T) {
 		admin, err := model.RestoreUser(validUserID, un, nil, adminRole)
 		require.NoError(t, err)
 
-		err = admin.CanGrantAdminRole()
-		assert.ErrorIs(t, err, errors.ErrAdminRoleGrantForbidden)
+		err = admin.CanManageAdminRole()
+		assert.ErrorIs(t, err, errors.ErrAdminRoleGrantInsufficientTenure)
 	})
 
 	t.Run("AdminMoreThan72Hours", func(t *testing.T) {
@@ -563,7 +667,7 @@ func TestUser_CanGrantAdminRole(t *testing.T) {
 		admin, err := model.RestoreUser(validUserID, un, nil, adminRole)
 		require.NoError(t, err)
 
-		err = admin.CanGrantAdminRole()
+		err = admin.CanManageAdminRole()
 		require.NoError(t, err)
 	})
 }

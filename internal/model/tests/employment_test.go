@@ -1,6 +1,7 @@
 package tests
 
 import (
+	stderrors "errors"
 	"testing"
 	"time"
 
@@ -54,7 +55,16 @@ func TestEmployment_DeputyAndVacation(t *testing.T) {
 
 	t.Run("AssignDeputyInvalidIDForbidden", func(t *testing.T) {
 		err := employment.AssignDeputy(0)
-		assert.ErrorIs(t, err, errs.ErrInvalidEmploymentDeputy)
+		var invalidEmploymentErr *errs.InvalidEmploymentError
+		require.True(t, stderrors.As(err, &invalidEmploymentErr))
+		assert.Equal(t, errs.EmploymentFieldDeputy, invalidEmploymentErr.Field)
+		var deputyErr *errs.InvalidEmploymentDeputyError
+		require.True(t, stderrors.As(err, &deputyErr))
+		require.Equal(t, errs.EmploymentDeputyFieldID, deputyErr.Field)
+
+		var snowflakeErr *errs.InvalidSnowflakeIDError
+		require.True(t, stderrors.As(deputyErr.Reason, &snowflakeErr))
+		assert.Equal(t, errs.SnowflakeValidationReasonMustBePositive, snowflakeErr.Reason)
 	})
 
 	t.Run("GrantAndEndVacation", func(t *testing.T) {
@@ -80,6 +90,27 @@ func TestEmployment_DeputyAndVacation(t *testing.T) {
 		require.NotNil(t, employment.Vacation)
 		assert.True(t, employment.HasScheduledVacation())
 		assert.False(t, employment.IsOnVacation())
+
+		err = employment.ScheduleVacation(startsAt.Add(24*time.Hour), nil)
+		var invalidEmploymentErr *errs.InvalidEmploymentError
+		require.True(t, stderrors.As(err, &invalidEmploymentErr))
+		assert.Equal(t, errs.EmploymentFieldVacation, invalidEmploymentErr.Field)
+		assert.ErrorIs(t, invalidEmploymentErr.Reason, errs.ErrEmploymentVacationAlreadyExists)
+	})
+
+	t.Run("ScheduleVacationTooFarInFutureForbidden", func(t *testing.T) {
+		employment.EndVacation()
+
+		startsAt := time.Now().UTC().AddDate(0, model.EmploymentVacationMaxScheduleAheadMonths, 0).Add(24 * time.Hour)
+		err := employment.ScheduleVacation(startsAt, nil)
+		var invalidEmploymentErr *errs.InvalidEmploymentError
+		require.True(t, stderrors.As(err, &invalidEmploymentErr))
+		assert.Equal(t, errs.EmploymentFieldVacation, invalidEmploymentErr.Field)
+		var vacationFieldErr *errs.InvalidEmploymentVacationError
+		require.True(t, stderrors.As(err, &vacationFieldErr))
+		assert.Equal(t, errs.EmploymentVacationFieldStartsAt, vacationFieldErr.Field)
+		var tooFarErr *errs.TimestampAfterMaximumError
+		require.True(t, stderrors.As(vacationFieldErr.Reason, &tooFarErr))
 	})
 }
 
@@ -105,7 +136,9 @@ func TestRestoreEmployment_VacationInvariant(t *testing.T) {
 		nil,
 		vacation,
 	)
-	assert.ErrorIs(t, err, errs.ErrInvalidEmploymentVacation)
+	var invalidVacationErr *errs.InvalidEmploymentVacationError
+	require.True(t, stderrors.As(err, &invalidVacationErr))
+	assert.Equal(t, errs.EmploymentVacationFieldEndsAt, invalidVacationErr.Field)
 }
 
 func TestNewEmploymentDeputy_Validation(t *testing.T) {
@@ -116,7 +149,13 @@ func TestNewEmploymentDeputy_Validation(t *testing.T) {
 	assert.Equal(t, int64(2<<23), deputy.ID)
 
 	_, err = model.NewEmploymentDeputy(0)
-	assert.ErrorIs(t, err, errs.ErrInvalidEmploymentDeputy)
+	var deputyErr *errs.InvalidEmploymentDeputyError
+	require.True(t, stderrors.As(err, &deputyErr))
+	require.Equal(t, errs.EmploymentDeputyFieldID, deputyErr.Field)
+
+	var snowflakeErr *errs.InvalidSnowflakeIDError
+	require.True(t, stderrors.As(deputyErr.Reason, &snowflakeErr))
+	assert.Equal(t, errs.SnowflakeValidationReasonMustBePositive, snowflakeErr.Reason)
 }
 
 func TestNewEmploymentVacation_CopyEndsAt(t *testing.T) {
@@ -191,6 +230,24 @@ func TestNewEmployment_CopiesPositionPointer(t *testing.T) {
 
 	assert.Equal(t, "Doctor", *employment.Position)
 	assert.NotSame(t, &position, employment.Position)
+}
+
+func TestNewEmployment_AssignedAtMustNotBeZero(t *testing.T) {
+	t.Parallel()
+
+	_, err := model.NewEmployment(
+		validEmploymentUserID(),
+		validEmploymentOrganizationID(),
+		validEmploymentClinicID(),
+		validEmploymentDepartmentID(),
+		nil,
+		time.Time{},
+	)
+	var invalidEmploymentErr *errs.InvalidEmploymentError
+	require.True(t, stderrors.As(err, &invalidEmploymentErr))
+	assert.Equal(t, errs.EmploymentFieldAssignedAt, invalidEmploymentErr.Field)
+	var requiredErr *errs.ValueRequiredError
+	require.True(t, stderrors.As(invalidEmploymentErr.Reason, &requiredErr))
 }
 
 func TestRestoreEmployment_CopiesPositionPointer(t *testing.T) {

@@ -1,6 +1,7 @@
 package tests
 
 import (
+	stderrors "errors"
 	"strings"
 	"testing"
 
@@ -51,19 +52,25 @@ func TestGeoPoint_NewGeoPoint(t *testing.T) {
 	t.Run("InvalidLatitude", func(t *testing.T) {
 		t.Parallel()
 		_, err := model.NewGeoPoint(-91, 0)
-		assert.ErrorIs(t, err, errors.ErrInvalidLatitude)
+		var geoErr *errors.InvalidGeoPointError
+		require.True(t, stderrors.As(err, &geoErr))
+		assert.Equal(t, errors.GeoPointFieldLatitude, geoErr.Field)
 
 		_, err = model.NewGeoPoint(91, 0)
-		assert.ErrorIs(t, err, errors.ErrInvalidLatitude)
+		require.True(t, stderrors.As(err, &geoErr))
+		assert.Equal(t, errors.GeoPointFieldLatitude, geoErr.Field)
 	})
 
 	t.Run("InvalidLongitude", func(t *testing.T) {
 		t.Parallel()
 		_, err := model.NewGeoPoint(0, -181)
-		assert.ErrorIs(t, err, errors.ErrInvalidLongitude)
+		var geoErr *errors.InvalidGeoPointError
+		require.True(t, stderrors.As(err, &geoErr))
+		assert.Equal(t, errors.GeoPointFieldLongitude, geoErr.Field)
 
 		_, err = model.NewGeoPoint(0, 181)
-		assert.ErrorIs(t, err, errors.ErrInvalidLongitude)
+		require.True(t, stderrors.As(err, &geoErr))
+		assert.Equal(t, errors.GeoPointFieldLongitude, geoErr.Field)
 	})
 }
 
@@ -81,13 +88,17 @@ func TestGeoPoint_NewGeoPoint_AdditionalCases(t *testing.T) {
 	t.Run("InvalidLatitude", func(t *testing.T) {
 		t.Parallel()
 		_, err := model.NewGeoPoint(-91, 0)
-		assert.ErrorIs(t, err, errors.ErrInvalidLatitude)
+		var geoErr *errors.InvalidGeoPointError
+		require.True(t, stderrors.As(err, &geoErr))
+		assert.Equal(t, errors.GeoPointFieldLatitude, geoErr.Field)
 	})
 
 	t.Run("InvalidLongitude", func(t *testing.T) {
 		t.Parallel()
 		_, err := model.NewGeoPoint(0, 181)
-		assert.ErrorIs(t, err, errors.ErrInvalidLongitude)
+		var geoErr *errors.InvalidGeoPointError
+		require.True(t, stderrors.As(err, &geoErr))
+		assert.Equal(t, errors.GeoPointFieldLongitude, geoErr.Field)
 	})
 }
 
@@ -126,39 +137,54 @@ func TestAddress_NewAddress(t *testing.T) {
 	t.Run("EmptyAddress", func(t *testing.T) {
 		t.Parallel()
 		_, err := model.NewAddress("", nil)
-		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+		var addressErr *errors.InvalidAddressError
+		require.True(t, stderrors.As(err, &addressErr))
+		assert.Equal(t, errors.AddressFieldValue, addressErr.Field)
 	})
 
 	t.Run("TooShortAddress", func(t *testing.T) {
 		t.Parallel()
 		_, err := model.NewAddress("ABC", nil) // 3 chars < 5
-		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+		var addressErr *errors.InvalidAddressError
+		require.True(t, stderrors.As(err, &addressErr))
+		assert.Equal(t, errors.AddressFieldValue, addressErr.Field)
 	})
 
 	t.Run("TooLongAddress", func(t *testing.T) {
 		t.Parallel()
 		longAddr := strings.Repeat("A", 501)
 		_, err := model.NewAddress(longAddr, nil)
-		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+		var addressErr *errors.InvalidAddressError
+		require.True(t, stderrors.As(err, &addressErr))
+		assert.Equal(t, errors.AddressFieldValue, addressErr.Field)
 	})
 
 	t.Run("LeadingWhitespace", func(t *testing.T) {
 		t.Parallel()
 		_, err := model.NewAddress(" Moscow, Red Square, 1", nil)
-		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+		var addressErr *errors.InvalidAddressError
+		require.True(t, stderrors.As(err, &addressErr))
+		assert.Equal(t, errors.AddressFieldValue, addressErr.Field)
 	})
 
 	t.Run("TrailingWhitespace", func(t *testing.T) {
 		t.Parallel()
 		_, err := model.NewAddress("Moscow, Red Square, 1 ", nil)
-		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+		var addressErr *errors.InvalidAddressError
+		require.True(t, stderrors.As(err, &addressErr))
+		assert.Equal(t, errors.AddressFieldValue, addressErr.Field)
 	})
 
 	t.Run("InvalidPoint", func(t *testing.T) {
 		t.Parallel()
 		point := model.GeoPoint{Latitude: 100, Longitude: 37.6208}
 		_, err := model.NewAddress("Moscow, Red Square, 1", &point)
-		assert.ErrorIs(t, err, errors.ErrInvalidLatitude)
+		var addressErr *errors.InvalidAddressError
+		require.True(t, stderrors.As(err, &addressErr))
+		assert.Equal(t, errors.AddressFieldPoint, addressErr.Field)
+		var geoErr *errors.InvalidGeoPointError
+		require.True(t, stderrors.As(addressErr.Reason, &geoErr))
+		assert.Equal(t, errors.GeoPointFieldLatitude, geoErr.Field)
 	})
 }
 
@@ -176,14 +202,18 @@ func TestAddress_NewAddress_AdditionalCases(t *testing.T) {
 	t.Run("InvalidAddressValue", func(t *testing.T) {
 		t.Parallel()
 		_, err := model.NewAddress("", nil)
-		assert.ErrorIs(t, err, errors.ErrInvalidAddressValue)
+		var addressErr *errors.InvalidAddressError
+		require.True(t, stderrors.As(err, &addressErr))
+		assert.Equal(t, errors.AddressFieldValue, addressErr.Field)
 	})
 
 	t.Run("InvalidPoint", func(t *testing.T) {
 		t.Parallel()
 		point := model.GeoPoint{Latitude: 100, Longitude: 37.6208}
 		_, err := model.NewAddress("Moscow, Red Square, 1", &point)
-		assert.ErrorIs(t, err, errors.ErrInvalidLatitude)
+		var addressErr *errors.InvalidAddressError
+		require.True(t, stderrors.As(err, &addressErr))
+		assert.Equal(t, errors.AddressFieldPoint, addressErr.Field)
 	})
 
 	t.Run("CopyPoint", func(t *testing.T) {
