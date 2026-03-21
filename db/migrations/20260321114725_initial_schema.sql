@@ -1,0 +1,97 @@
+-- migrate:up
+
+CREATE TABLE organizations (
+    id          uuid NOT NULL PRIMARY KEY,
+    name        text NOT NULL,
+    description text,
+    address     text NOT NULL,
+    geo_lat     double precision,
+    geo_lon     double precision,
+    CONSTRAINT organizations_geo_consistency CHECK ((geo_lat IS NULL) = (geo_lon IS NULL))
+);
+
+CREATE TABLE clinics (
+    id              uuid NOT NULL PRIMARY KEY,
+    organization_id uuid NOT NULL REFERENCES organizations (id),
+    name            text NOT NULL,
+    description     text,
+    address         text NOT NULL,
+    geo_lat         double precision,
+    geo_lon         double precision,
+    CONSTRAINT clinics_geo_consistency CHECK ((geo_lat IS NULL) = (geo_lon IS NULL))
+);
+
+CREATE TABLE departments (
+    id          uuid NOT NULL PRIMARY KEY,
+    clinic_id   uuid NOT NULL REFERENCES clinics (id),
+    name        text NOT NULL,
+    description text
+);
+
+-- Users use int64 Snowflake IDs assigned by the identity provider.
+-- admin_role_granted_by references another user; NO ACTION on delete since
+-- users are never physically removed in this domain.
+CREATE TABLE users (
+    id                    bigint      NOT NULL PRIMARY KEY,
+    given_name            text        NOT NULL,
+    family_name           text        NOT NULL,
+    middle_name           text,
+    custom_given_name     text,
+    custom_family_name    text,
+    custom_middle_name    text,
+    admin_role_granted_at timestamptz,
+    admin_role_granted_by bigint      REFERENCES users (id),
+    CONSTRAINT users_admin_role_consistency
+        CHECK ((admin_role_granted_at IS NULL) = (admin_role_granted_by IS NULL)),
+    CONSTRAINT users_custom_name_consistency
+        CHECK ((custom_given_name IS NULL) = (custom_family_name IS NULL))
+);
+
+-- One employment per user per organization enforced by the unique constraint,
+-- mirroring the domain invariant in User.IsEmployeeOfOrganization.
+CREATE TABLE employments (
+    id                 uuid        NOT NULL PRIMARY KEY,
+    user_id            bigint      NOT NULL REFERENCES users (id),
+    organization_id    uuid        NOT NULL REFERENCES organizations (id),
+    clinic_id          uuid        NOT NULL REFERENCES clinics (id),
+    department_id      uuid        NOT NULL REFERENCES departments (id),
+    position           text,
+    assigned_at        timestamptz NOT NULL,
+    deputy_user_id     bigint      REFERENCES users (id),
+    vacation_starts_at timestamptz,
+    vacation_ends_at   timestamptz,
+    CONSTRAINT employments_user_per_org UNIQUE (user_id, organization_id),
+    CONSTRAINT employments_deputy_not_self
+        CHECK (deputy_user_id IS NULL OR deputy_user_id != user_id),
+    CONSTRAINT employments_vacation_consistency
+        CHECK (
+            vacation_starts_at IS NULL
+            OR vacation_ends_at IS NULL
+            OR vacation_ends_at >= vacation_starts_at
+        )
+);
+
+-- Outbox table for reliable domain event delivery.
+-- The relay process polls for unpublished rows and forwards them to the broker.
+CREATE TABLE outbox_events (
+    id           bigserial   NOT NULL PRIMARY KEY,
+    sequence     bigint      NOT NULL,
+    event_type   text        NOT NULL,
+    payload      jsonb       NOT NULL,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    published_at timestamptz
+);
+
+-- Partial index keeps relay scans fast: only undelivered rows are indexed.
+CREATE INDEX outbox_events_unpublished_idx
+    ON outbox_events (created_at)
+    WHERE published_at IS NULL;
+
+-- migrate:down
+
+DROP TABLE IF EXISTS outbox_events;
+DROP TABLE IF EXISTS employments;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS departments;
+DROP TABLE IF EXISTS clinics;
+DROP TABLE IF EXISTS organizations;

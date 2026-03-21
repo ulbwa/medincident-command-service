@@ -11,6 +11,8 @@ import (
 type Config struct {
 	// Logging configuration.
 	Logger LoggerConfig `yaml:"logger" validate:"required"`
+	// Database connection configuration.
+	Database DatabaseConfig `yaml:"database" validate:"required"`
 }
 
 var defaultConfig = Config{

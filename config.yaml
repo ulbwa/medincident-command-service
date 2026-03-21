@@ -1,3 +1,9 @@
+# Database configuration.
+database:
+  # PostgreSQL DSN. Populated from DATABASE_URL at runtime.
+  # Format: postgres://user:pass@host:port/dbname?sslmode=disable
+  dsn: $DATABASE_URL
+
 # Logging configuration.
 logger:
   # Global log level (trace, debug, info, warn, error, fatal, panic).
