@@ -74,9 +74,11 @@ CREATE TABLE employments (
 
 -- Outbox table for reliable domain event delivery.
 -- The relay process polls for unpublished rows and forwards them to the broker.
+-- id (bigserial) is the canonical ordering field for the relay: PostgreSQL sequences
+-- are non-transactional (not rolled back on abort) and monotonically increasing
+-- across all service instances, making id a correct global insertion-order key.
 CREATE TABLE outbox_events (
     id           bigserial   NOT NULL PRIMARY KEY,
-    sequence     bigint      NOT NULL,
     event_type   text        NOT NULL,
     payload      jsonb       NOT NULL,
     created_at   timestamptz NOT NULL DEFAULT now(),
@@ -88,8 +90,10 @@ CREATE INDEX employments_user_id_assigned_at_idx
     ON employments (user_id, assigned_at);
 
 -- Partial index keeps relay scans fast: only undelivered rows are indexed.
+-- The relay reads in id ASC order; id is always increasing so created_at is
+-- a good proxy for the scan filter.
 CREATE INDEX outbox_events_unpublished_idx
-    ON outbox_events (created_at)
+    ON outbox_events (id)
     WHERE published_at IS NULL;
 
 -- migrate:down

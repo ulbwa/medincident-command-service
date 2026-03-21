@@ -13,8 +13,9 @@ import (
 )
 
 // OutboxDispatcher writes domain events to the outbox_events table within the
-// active transaction retrieved from the context. Events from all sources are
-// merged and sorted by their monotonic Sequence before insertion, preserving
+// provided transaction. Events from all sources are merged and sorted by their
+// process-local Sequence before insertion so that the resulting outbox_events.id
+// values (bigserial, non-transactional, monotonic across all instances) reflect
 // the original cross-aggregate recording order.
 type OutboxDispatcher struct{}
 
@@ -63,8 +64,8 @@ func (d *OutboxDispatcher) Dispatch(ctx context.Context, tx persistence.Transact
 }
 
 const insertOutboxEventQuery = `
-INSERT INTO outbox_events (sequence, event_type, payload, created_at)
-VALUES ($1, $2, $3, now())`
+INSERT INTO outbox_events (event_type, payload, created_at)
+VALUES ($1, $2, now())`
 
 // eventNamer is implemented by domain event types that declare a stable,
 // rename-safe type discriminator for the relay layer.
@@ -88,7 +89,7 @@ func (d *OutboxDispatcher) insert(ctx context.Context, sqlTx *sqlx.Tx, ev outbox
 		eventType = fmt.Sprintf("%T", ev.Payload)
 	}
 
-	if _, err := sqlTx.ExecContext(ctx, insertOutboxEventQuery, ev.Sequence, eventType, payload); err != nil {
+	if _, err := sqlTx.ExecContext(ctx, insertOutboxEventQuery, eventType, payload); err != nil {
 		return fmt.Errorf("insert outbox event %s: %w", eventType, err)
 	}
 

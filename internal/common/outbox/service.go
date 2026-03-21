@@ -6,13 +6,17 @@ import (
 	"github.com/ulbwa/medincident-command-service/internal/common/persistence"
 )
 
-// Event is a domain event stamped with a monotonically increasing sequence number.
-// The sequence is assigned at recording time using a process-wide atomic counter,
-// so events from different aggregates can be merged and sorted into their original
-// recording order before being dispatched.
+// Event is a domain event stamped with a process-local sequence number.
+// The sequence is assigned at recording time using a process-wide atomic counter
+// and is used exclusively to sort events from different aggregates into their
+// original recording order before insertion. It is not persisted to the database;
+// the outbox_events.id (bigserial) is the canonical global ordering field for
+// the relay, as PostgreSQL sequences are non-transactional and monotonic across
+// all service instances.
 type Event struct {
-	// Sequence is a process-wide monotonic counter value assigned when the event
-	// was recorded. Use it to sort events from multiple EventSource instances.
+	// Sequence is a process-local monotonic counter value assigned when the event
+	// was recorded. Used only to sort events from multiple EventSource instances
+	// before insertion — not stored in the database.
 	Sequence uint64
 	// Payload is the domain event value (e.g. OrderCancelledEvent{}).
 	Payload any
