@@ -104,11 +104,11 @@ func (s *Service) dispatchBackgroundUserMetadataUpdate(ctx context.Context, user
 func (s *Service) syncHumanIdentity(ctx context.Context, user *model.User) error {
 	identity, err := s.identityProvider.Get(ctx, user.IdentityID)
 	if err != nil {
-		return fmt.Errorf("failed to get identity for user %s: %w", user.ID, err)
+		return fmt.Errorf("failed to get identity for user %s: %w", user.ID.String(), err)
 	}
 
 	if identity.Human == nil {
-		return fmt.Errorf("identity profile for user %s is not a human, cannot sync", user.ID)
+		return fmt.Errorf("identity profile for user %s is not a human, cannot sync", user.ID.String())
 	}
 
 	preferredName := user.PreferredName()

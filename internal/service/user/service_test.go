@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -116,6 +117,34 @@ func (m *MockIdentityProvider) UpdateUserMetadata(ctx context.Context, identityI
 	return args.Error(0)
 }
 
+// syncIDPFake is a thread-safe IdentityProvider stub for tests where background
+// goroutines spawned by the service would race against testify/mock internals.
+// testify/mock uses *testing.T internally; a goroutine calling m.Called() after
+// the test exits triggers t.Fatalf from the wrong goroutine, which panics.
+type syncIDPFake struct {
+	mu       sync.Mutex
+	getCalls int
+	identity *Identity
+}
+
+func (f *syncIDPFake) Get(_ context.Context, _ string) (*Identity, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.getCalls++
+	if f.getCalls == 1 {
+		return f.identity, nil
+	}
+	return nil, errors.ErrInvalidRequest
+}
+
+func (f *syncIDPFake) UpdateHuman(_ context.Context, _ string, _ *IdentityHuman) (*Identity, error) {
+	return nil, nil
+}
+
+func (f *syncIDPFake) UpdateUserMetadata(_ context.Context, _ string, _ *IdentityUserMetadata) error {
+	return nil
+}
+
 // Tests
 
 func TestService_Create(t *testing.T) {
@@ -129,20 +158,17 @@ func TestService_Create(t *testing.T) {
 		mockTx := new(MockTx)
 		mockDispatcher := new(MockEventDispatcher)
 		mockRepo := new(MockRepo)
-		mockIDP := new(MockIdentityProvider)
 
-		svc, err := NewService(mockTxFactory, mockDispatcher, mockIDP, mockRepo)
-		require.NoError(t, err)
-
+		// Use a thread-safe fake instead of testify/mock for the identity provider.
+		// Background goroutines spawned by the service call the IDP after Create returns;
+		// using testify/mock here would race against t.Fatalf called from the wrong goroutine.
 		humanProfile := &IdentityHuman{GivenName: "Test", FamilyName: "User"}
-		identity := &Identity{ID: identityID, Human: humanProfile, IsActive: true}
+		idpFake := &syncIDPFake{
+			identity: &Identity{ID: identityID, Human: humanProfile, IsActive: true},
+		}
 
-		// Synchronous call inside Create.
-		mockIDP.On("Get", ctx, identityID).Return(identity, nil).Once()
-		// Background goroutines fire after the transaction commits with derived contexts.
-		// Return an error so syncHumanIdentity exits without calling UpdateHuman.
-		mockIDP.On("Get", mock.Anything, identityID).Return(nil, errors.ErrInvalidRequest).Maybe()
-		mockIDP.On("UpdateUserMetadata", mock.Anything, identityID, mock.Anything).Return(nil).Maybe()
+		svc, err := NewService(mockTxFactory, mockDispatcher, idpFake, mockRepo)
+		require.NoError(t, err)
 
 		mockTxFactory.On("Begin", ctx).Return(ctx, mockTx, nil)
 		mockRepo.On("ExistsByIdentityID", ctx, identityID).Return(false, nil)
