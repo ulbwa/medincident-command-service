@@ -122,13 +122,20 @@ func (r *userRepository) Save(ctx context.Context, user *model.User) error {
 
 	empRecs := entity.FromEmployments(user.Employments)
 
+	// Delete removed employments before upserting current ones to avoid hitting
+	// UNIQUE (user_id, organization_id) when an employment is dismissed and a
+	// new one in the same organization is added within the same aggregate save.
+	if err := r.deleteRemovedEmployments(ctx, tx, user.ID, empRecs); err != nil {
+		return err
+	}
+
 	for _, emp := range empRecs {
 		if err := r.upsertEmployment(ctx, tx, emp); err != nil {
 			return err
 		}
 	}
 
-	return r.deleteRemovedEmployments(ctx, tx, user.ID, empRecs)
+	return nil
 }
 
 const upsertUserQuery = `
