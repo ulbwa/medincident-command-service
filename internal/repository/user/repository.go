@@ -50,7 +50,7 @@ func (r *userRepository) db(ctx context.Context) querier {
 
 // GetByID loads the User aggregate together with all its Employments.
 // Returns errs.ErrNotFound when no user exists with that id.
-func (r *userRepository) GetByID(ctx context.Context, id int64) (*model.User, error) {
+func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
 	db := r.db(ctx)
 
 	var rec entity.UserRecord
@@ -68,19 +68,19 @@ func (r *userRepository) GetByID(ctx context.Context, id int64) (*model.User, er
 
 	const empQuery = `SELECT * FROM employments WHERE user_id = $1 ORDER BY assigned_at`
 	if err := db.SelectContext(ctx, &empRecs, empQuery, id); err != nil {
-		return nil, fmt.Errorf("query employments for user %d: %w", id, err)
+		return nil, fmt.Errorf("query employments for user %s: %w", id, err)
 	}
 
 	user, err := entity.ToUser(rec, empRecs)
 	if err != nil {
-		return nil, fmt.Errorf("restore user %d from storage: %w", id, err)
+		return nil, fmt.Errorf("restore user %s from storage: %w", id, err)
 	}
 
 	return user, nil
 }
 
 // ExistsByID reports whether a user with the given id exists.
-func (r *userRepository) ExistsByID(ctx context.Context, id int64) (bool, error) {
+func (r *userRepository) ExistsByID(ctx context.Context, id uuid.UUID) (bool, error) {
 	db := r.db(ctx)
 
 	var exists bool
@@ -88,6 +88,20 @@ func (r *userRepository) ExistsByID(ctx context.Context, id int64) (bool, error)
 	const query = `SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)`
 	if err := db.GetContext(ctx, &exists, query, id); err != nil {
 		return false, fmt.Errorf("check user exists by id: %w", err)
+	}
+
+	return exists, nil
+}
+
+// ExistsByIdentityID reports whether a user with the given identity provider ID exists.
+func (r *userRepository) ExistsByIdentityID(ctx context.Context, identityID string) (bool, error) {
+	db := r.db(ctx)
+
+	var exists bool
+
+	const query = `SELECT EXISTS(SELECT 1 FROM users WHERE identity_id = $1)`
+	if err := db.GetContext(ctx, &exists, query, identityID); err != nil {
+		return false, fmt.Errorf("check user exists by identity id: %w", err)
 	}
 
 	return exists, nil
@@ -119,15 +133,16 @@ func (r *userRepository) Save(ctx context.Context, user *model.User) error {
 
 const upsertUserQuery = `
 INSERT INTO users (
-    id, given_name, family_name, middle_name,
+    id, identity_id, given_name, family_name, middle_name,
     custom_given_name, custom_family_name, custom_middle_name,
     admin_role_granted_at, admin_role_granted_by
 ) VALUES (
-    :id, :given_name, :family_name, :middle_name,
+    :id, :identity_id, :given_name, :family_name, :middle_name,
     :custom_given_name, :custom_family_name, :custom_middle_name,
     :admin_role_granted_at, :admin_role_granted_by
 )
 ON CONFLICT (id) DO UPDATE SET
+    identity_id           = EXCLUDED.identity_id,
     given_name            = EXCLUDED.given_name,
     family_name           = EXCLUDED.family_name,
     middle_name           = EXCLUDED.middle_name,
@@ -140,7 +155,7 @@ ON CONFLICT (id) DO UPDATE SET
 func (r *userRepository) upsertUser(ctx context.Context, tx *sqlx.Tx, user *model.User) error {
 	rec := entity.FromUser(user)
 	if _, err := tx.NamedExecContext(ctx, upsertUserQuery, rec); err != nil {
-		return fmt.Errorf("upsert user %d: %w", user.ID, err)
+		return fmt.Errorf("upsert user %s: %w", user.ID, err)
 	}
 
 	return nil
@@ -170,11 +185,11 @@ func (r *userRepository) upsertEmployment(ctx context.Context, tx *sqlx.Tx, rec 
 
 // deleteRemovedEmployments removes employment rows that exist in the database
 // for this user but are absent from the current aggregate state (i.e. dismissed).
-func (r *userRepository) deleteRemovedEmployments(ctx context.Context, tx *sqlx.Tx, userID int64, current []entity.EmploymentRecord) error {
+func (r *userRepository) deleteRemovedEmployments(ctx context.Context, tx *sqlx.Tx, userID uuid.UUID, current []entity.EmploymentRecord) error {
 	if len(current) == 0 {
 		const query = `DELETE FROM employments WHERE user_id = $1`
 		if _, err := tx.ExecContext(ctx, query, userID); err != nil {
-			return fmt.Errorf("delete all employments for user %d: %w", userID, err)
+			return fmt.Errorf("delete all employments for user %s: %w", userID, err)
 		}
 
 		return nil
@@ -187,7 +202,7 @@ func (r *userRepository) deleteRemovedEmployments(ctx context.Context, tx *sqlx.
 
 	const query = `DELETE FROM employments WHERE user_id = $1 AND NOT (id = ANY($2::uuid[]))`
 	if _, err := tx.ExecContext(ctx, query, userID, pq.Array(ids)); err != nil {
-		return fmt.Errorf("delete removed employments for user %d: %w", userID, err)
+		return fmt.Errorf("delete removed employments for user %s: %w", userID, err)
 	}
 
 	return nil

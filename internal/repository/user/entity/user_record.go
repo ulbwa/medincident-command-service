@@ -13,7 +13,8 @@ import (
 
 // UserRecord maps directly to a row in the users table.
 type UserRecord struct {
-	ID                 int64      `db:"id"`
+	ID                 uuid.UUID  `db:"id"`
+	IdentityID         string     `db:"identity_id"`
 	GivenName          string     `db:"given_name"`
 	FamilyName         string     `db:"family_name"`
 	MiddleName         *string    `db:"middle_name"`
@@ -21,19 +22,19 @@ type UserRecord struct {
 	CustomFamilyName   *string    `db:"custom_family_name"`
 	CustomMiddleName   *string    `db:"custom_middle_name"`
 	AdminRoleGrantedAt *time.Time `db:"admin_role_granted_at"`
-	AdminRoleGrantedBy *int64     `db:"admin_role_granted_by"`
+	AdminRoleGrantedBy *uuid.UUID `db:"admin_role_granted_by"`
 }
 
 // EmploymentRecord maps directly to a row in the employments table.
 type EmploymentRecord struct {
 	ID               uuid.UUID  `db:"id"`
-	UserID           int64      `db:"user_id"`
+	UserID           uuid.UUID  `db:"user_id"`
 	OrganizationID   uuid.UUID  `db:"organization_id"`
 	ClinicID         uuid.UUID  `db:"clinic_id"`
 	DepartmentID     uuid.UUID  `db:"department_id"`
 	Position         *string    `db:"position"`
 	AssignedAt       time.Time  `db:"assigned_at"`
-	DeputyUserID     *int64     `db:"deputy_user_id"`
+	DeputyUserID     *uuid.UUID `db:"deputy_user_id"`
 	VacationStartsAt *time.Time `db:"vacation_starts_at"`
 	VacationEndsAt   *time.Time `db:"vacation_ends_at"`
 }
@@ -42,6 +43,7 @@ type EmploymentRecord struct {
 func FromUser(u *model.User) UserRecord {
 	rec := UserRecord{
 		ID:         u.ID,
+		IdentityID: u.IdentityID,
 		GivenName:  u.Name.GivenName,
 		FamilyName: u.Name.FamilyName,
 		MiddleName: u.Name.MiddleName,
@@ -98,7 +100,7 @@ func ToUser(rec UserRecord, empRecs []EmploymentRecord) (*model.User, error) {
 		employments = append(employments, emp)
 	}
 
-	return model.RestoreUser(rec.ID, name, customName, adminRole, employments)
+	return model.RestoreUser(rec.ID, rec.IdentityID, name, customName, adminRole, employments)
 }
 
 func toEmployment(rec EmploymentRecord) (*model.Employment, error) {
