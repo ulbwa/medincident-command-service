@@ -74,6 +74,7 @@ type UserField string
 
 const (
 	UserFieldID          UserField = "id"
+	UserFieldIdentityID  UserField = "identityID"
 	UserFieldName        UserField = "name"
 	UserFieldAdminRole   UserField = "adminRole"
 	UserFieldCustomName  UserField = "customName"

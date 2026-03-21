@@ -9,34 +9,35 @@ import (
 // UserDomainEvent structs for CQRS routing decoupling the core domain from proto dtos.
 
 type UserCreatedEvent struct {
-	ID   int64
-	Name UserName
+	ID         uuid.UUID
+	IdentityID string
+	Name       UserName
 }
 
 type UserNameUpdatedEvent struct {
-	ID   int64
+	ID   uuid.UUID
 	Name UserName
 }
 
 type UserCustomNameUpdatedEvent struct {
-	ID         int64
+	ID         uuid.UUID
 	CustomName *UserName // nil if cleared
 }
 
 type UserGrantedAdminRoleEvent struct {
-	ID        int64
+	ID        uuid.UUID
 	GrantedAt time.Time
-	GrantedBy int64
+	GrantedBy uuid.UUID
 }
 
 type UserRevokedAdminRoleEvent struct {
-	ID        int64
+	ID        uuid.UUID
 	RevokedAt time.Time
-	RevokedBy int64
+	RevokedBy uuid.UUID
 }
 
 type UserEmployedEvent struct {
-	UserID         int64
+	UserID         uuid.UUID
 	EmploymentID   uuid.UUID
 	OrganizationID uuid.UUID
 	ClinicID       uuid.UUID
@@ -46,6 +47,6 @@ type UserEmployedEvent struct {
 }
 
 type UserDismissedEvent struct {
-	UserID       int64
+	UserID       uuid.UUID
 	EmploymentID uuid.UUID
 }

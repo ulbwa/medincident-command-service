@@ -34,7 +34,7 @@ func validateEmploymentDeputy(deputy EmploymentDeputy) error {
 	return nil
 }
 
-func validateDeputyID(deputyID int64) error {
+func validateDeputyID(deputyID uuid.UUID) error {
 	return validateEmploymentDeputy(EmploymentDeputy{ID: deputyID})
 }
 
