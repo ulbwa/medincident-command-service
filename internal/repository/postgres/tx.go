@@ -64,6 +64,12 @@ type transaction struct {
 	committed bool
 }
 
+// SQLTx exposes the underlying *sqlx.Tx for infrastructure components that
+// need direct access to the database transaction (e.g. the outbox dispatcher).
+func (t *transaction) SQLTx() *sqlx.Tx {
+	return t.tx
+}
+
 // Close is idempotent: a no-op if the transaction was already committed or rolled back.
 // Called by persistence.WithinTransaction in a defer to release the connection.
 func (t *transaction) Close() error {

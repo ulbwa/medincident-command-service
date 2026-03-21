@@ -23,13 +23,22 @@ func NewOutboxDispatcher() *OutboxDispatcher {
 	return &OutboxDispatcher{}
 }
 
+// sqlTxProvider is a narrow interface satisfied by the postgres transaction
+// wrapper, used to extract the underlying *sqlx.Tx without importing the
+// concrete type (which lives in the same package, but keeps the contract explicit).
+type sqlTxProvider interface {
+	SQLTx() *sqlx.Tx
+}
+
 // Dispatch collects events from all sources, sorts them by sequence, and inserts
 // them into outbox_events within the provided transaction.
 func (d *OutboxDispatcher) Dispatch(ctx context.Context, tx persistence.Transaction, sources ...outbox.EventSource) error {
-	sqlTx := TxFromContext(ctx)
-	if sqlTx == nil {
-		return fmt.Errorf("outbox dispatcher: no active transaction in context")
+	provider, ok := tx.(sqlTxProvider)
+	if !ok {
+		return fmt.Errorf("outbox dispatcher: transaction does not implement SQLTx()")
 	}
+
+	sqlTx := provider.SQLTx()
 
 	var events []outbox.Event
 	for _, src := range sources {
