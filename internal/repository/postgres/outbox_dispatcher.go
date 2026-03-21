@@ -66,15 +66,27 @@ const insertOutboxEventQuery = `
 INSERT INTO outbox_events (sequence, event_type, payload, created_at)
 VALUES ($1, $2, $3, now())`
 
+// eventNamer is implemented by domain event types that declare a stable,
+// rename-safe type discriminator for the relay layer.
+type eventNamer interface {
+	EventType() string
+}
+
 func (d *OutboxDispatcher) insert(ctx context.Context, sqlTx *sqlx.Tx, ev outbox.Event) error {
 	payload, err := json.Marshal(ev.Payload)
 	if err != nil {
 		return fmt.Errorf("marshal outbox event payload: %w", err)
 	}
 
-	// %T produces the short qualified type name (e.g. "model.UserCreatedEvent").
-	// This is sufficient as a type discriminator for the relay layer.
-	eventType := fmt.Sprintf("%T", ev.Payload)
+	var eventType string
+	if namer, ok := ev.Payload.(eventNamer); ok {
+		eventType = namer.EventType()
+	} else {
+		// Fallback for event types that do not implement EventType().
+		// Using %T is fragile (coupled to Go type/package names) — prefer
+		// implementing EventType() on new event structs.
+		eventType = fmt.Sprintf("%T", ev.Payload)
+	}
 
 	if _, err := sqlTx.ExecContext(ctx, insertOutboxEventQuery, ev.Sequence, eventType, payload); err != nil {
 		return fmt.Errorf("insert outbox event %s: %w", eventType, err)
