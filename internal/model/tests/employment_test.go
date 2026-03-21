@@ -13,8 +13,12 @@ import (
 	"github.com/ulbwa/medincident-command-service/internal/model"
 )
 
-func validEmploymentUserID() int64 {
-	return int64(1 << 23)
+func validEmploymentUserID() uuid.UUID {
+	return uuid.MustParse("01010101-0101-7101-8101-010101010101")
+}
+
+func validDeputyID() uuid.UUID {
+	return uuid.MustParse("04040404-0404-7404-8404-040404040404")
 }
 
 func validEmploymentDepartmentID() uuid.UUID {
@@ -42,11 +46,11 @@ func TestEmployment_DeputyAndVacation(t *testing.T) {
 	assert.Equal(t, validEmploymentClinicID(), employment.ClinicID)
 
 	t.Run("AssignAndRemoveDeputy", func(t *testing.T) {
-		err := employment.AssignDeputy(int64(2 << 23))
+		err := employment.AssignDeputy(validDeputyID())
 		require.NoError(t, err)
 		assert.True(t, employment.HasDeputy())
 		require.NotNil(t, employment.Deputy)
-		assert.Equal(t, int64(2<<23), employment.Deputy.ID)
+		assert.Equal(t, validDeputyID(), employment.Deputy.ID)
 
 		employment.RemoveDeputy()
 		assert.False(t, employment.HasDeputy())
@@ -54,7 +58,7 @@ func TestEmployment_DeputyAndVacation(t *testing.T) {
 	})
 
 	t.Run("AssignDeputyInvalidIDForbidden", func(t *testing.T) {
-		err := employment.AssignDeputy(0)
+		err := employment.AssignDeputy(uuid.Nil)
 		var invalidEmploymentErr *errs.InvalidEmploymentError
 		require.True(t, stderrors.As(err, &invalidEmploymentErr))
 		assert.Equal(t, errs.EmploymentFieldDeputy, invalidEmploymentErr.Field)
@@ -62,9 +66,9 @@ func TestEmployment_DeputyAndVacation(t *testing.T) {
 		require.True(t, stderrors.As(err, &deputyErr))
 		require.Equal(t, errs.EmploymentDeputyFieldID, deputyErr.Field)
 
-		var snowflakeErr *errs.InvalidSnowflakeIDError
-		require.True(t, stderrors.As(deputyErr.Reason, &snowflakeErr))
-		assert.Equal(t, errs.SnowflakeValidationReasonMustBePositive, snowflakeErr.Reason)
+		var invalidUUIDErr *errs.InvalidUUIDError
+		require.True(t, stderrors.As(deputyErr.Reason, &invalidUUIDErr))
+		assert.Equal(t, errs.UUIDValidationReasonRequired, invalidUUIDErr.Reason)
 	})
 
 	t.Run("GrantAndEndVacation", func(t *testing.T) {
@@ -144,18 +148,18 @@ func TestRestoreEmployment_VacationInvariant(t *testing.T) {
 func TestNewEmploymentDeputy_Validation(t *testing.T) {
 	t.Parallel()
 
-	deputy, err := model.NewEmploymentDeputy(int64(2 << 23))
+	deputy, err := model.NewEmploymentDeputy(validDeputyID())
 	require.NoError(t, err)
-	assert.Equal(t, int64(2<<23), deputy.ID)
+	assert.Equal(t, validDeputyID(), deputy.ID)
 
-	_, err = model.NewEmploymentDeputy(0)
+	_, err = model.NewEmploymentDeputy(uuid.Nil)
 	var deputyErr *errs.InvalidEmploymentDeputyError
 	require.True(t, stderrors.As(err, &deputyErr))
 	require.Equal(t, errs.EmploymentDeputyFieldID, deputyErr.Field)
 
-	var snowflakeErr *errs.InvalidSnowflakeIDError
-	require.True(t, stderrors.As(deputyErr.Reason, &snowflakeErr))
-	assert.Equal(t, errs.SnowflakeValidationReasonMustBePositive, snowflakeErr.Reason)
+	var invalidUUIDErr *errs.InvalidUUIDError
+	require.True(t, stderrors.As(deputyErr.Reason, &invalidUUIDErr))
+	assert.Equal(t, errs.UUIDValidationReasonRequired, invalidUUIDErr.Reason)
 }
 
 func TestNewEmploymentVacation_CopyEndsAt(t *testing.T) {
@@ -181,7 +185,7 @@ func TestRestoreEmployment_CopiesDeputyAndVacation(t *testing.T) {
 	startsAt := assignedAt.Add(24 * time.Hour)
 	endsAt := startsAt.Add(24 * time.Hour)
 
-	deputy := &model.EmploymentDeputy{ID: int64(2 << 23)}
+	deputy := &model.EmploymentDeputy{ID: validDeputyID()}
 	vacation := &model.EmploymentVacation{StartsAt: startsAt, EndsAt: &endsAt}
 
 	employment, err := model.RestoreEmployment(
@@ -199,10 +203,10 @@ func TestRestoreEmployment_CopiesDeputyAndVacation(t *testing.T) {
 	require.NotNil(t, employment.Deputy)
 	require.NotNil(t, employment.Vacation)
 
-	deputy.ID = int64(3 << 23)
+	deputy.ID = uuid.MustParse("05050505-0505-7505-8505-050505050505")
 	endsAt = endsAt.Add(24 * time.Hour)
 
-	assert.Equal(t, int64(2<<23), employment.Deputy.ID)
+	assert.Equal(t, validDeputyID(), employment.Deputy.ID)
 	require.NotNil(t, employment.Vacation.EndsAt)
 	assert.Equal(t, startsAt.Add(24*time.Hour), *employment.Vacation.EndsAt)
 	assert.NotSame(t, deputy, employment.Deputy)

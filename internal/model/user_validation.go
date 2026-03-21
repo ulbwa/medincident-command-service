@@ -56,9 +56,17 @@ func validateUserName(name UserName) error {
 	return nil
 }
 
-// validateUserID checks that the user ID is a valid Snowflake ID from Zitadel.
-func validateUserID(id int64) error {
-	return validateSnowflakeID(id)
+// validateUserID checks that the user ID is a valid UUIDv7.
+func validateUserID(id uuid.UUID) error {
+	return validateUUIDv7(id)
+}
+
+// validateIdentityID checks that the identity provider ID is not empty.
+func validateIdentityID(identityID string) error {
+	if identityID == "" {
+		return errs.NewValueRequiredError()
+	}
+	return nil
 }
 
 func validateAdminRole(adminRole AdminRole) error {
@@ -74,6 +82,9 @@ func validateAdminRole(adminRole AdminRole) error {
 func validateUser(u *User) error {
 	if err := validateUserID(u.ID); err != nil {
 		return errs.NewInvalidUserError(errs.UserFieldID, err)
+	}
+	if err := validateIdentityID(u.IdentityID); err != nil {
+		return errs.NewInvalidUserError(errs.UserFieldIdentityID, err)
 	}
 	if err := validateUserName(u.Name); err != nil {
 		return errs.NewInvalidUserError(errs.UserFieldName, err)
