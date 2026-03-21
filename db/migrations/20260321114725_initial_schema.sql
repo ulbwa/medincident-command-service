@@ -67,9 +67,8 @@ CREATE TABLE employments (
         CHECK (deputy_user_id IS NULL OR deputy_user_id != user_id),
     CONSTRAINT employments_vacation_consistency
         CHECK (
-            vacation_starts_at IS NULL
-            OR vacation_ends_at IS NULL
-            OR vacation_ends_at >= vacation_starts_at
+            (vacation_starts_at IS NULL AND vacation_ends_at IS NULL)
+            OR (vacation_starts_at IS NOT NULL AND (vacation_ends_at IS NULL OR vacation_ends_at >= vacation_starts_at))
         )
 );
 
@@ -84,6 +83,10 @@ CREATE TABLE outbox_events (
     published_at timestamptz
 );
 
+-- Supports the common query pattern: load all employments for a user ordered by assignment date.
+CREATE INDEX employments_user_id_assigned_at_idx
+    ON employments (user_id, assigned_at);
+
 -- Partial index keeps relay scans fast: only undelivered rows are indexed.
 CREATE INDEX outbox_events_unpublished_idx
     ON outbox_events (created_at)
@@ -92,6 +95,7 @@ CREATE INDEX outbox_events_unpublished_idx
 -- migrate:down
 
 DROP TABLE IF EXISTS outbox_events;
+DROP INDEX IF EXISTS employments_user_id_assigned_at_idx;
 DROP TABLE IF EXISTS employments;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS departments;
