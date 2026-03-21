@@ -9,8 +9,10 @@ import (
 	"github.com/ulbwa/medincident-command-service/pkg/utils"
 )
 
+// EmploymentDeputy holds the user ID of the designated deputy.
+// Deputy delegation is non-transitive: only the direct deputy receives delegated authority.
 type EmploymentDeputy struct {
-	ID int64
+	ID uuid.UUID
 }
 
 func (d EmploymentDeputy) copy() *EmploymentDeputy {
@@ -18,7 +20,7 @@ func (d EmploymentDeputy) copy() *EmploymentDeputy {
 	return &cloned
 }
 
-func NewEmploymentDeputy(deputyID int64) (EmploymentDeputy, error) {
+func NewEmploymentDeputy(deputyID uuid.UUID) (EmploymentDeputy, error) {
 	if err := validateDeputyID(deputyID); err != nil {
 		return EmploymentDeputy{}, err
 	}
@@ -69,7 +71,7 @@ func (v EmploymentVacation) IsScheduled() bool {
 type Employment struct {
 	Entity
 	ID             uuid.UUID
-	UserID         int64
+	UserID         uuid.UUID
 	OrganizationID uuid.UUID
 	ClinicID       uuid.UUID
 	DepartmentID   uuid.UUID
@@ -100,7 +102,7 @@ func (e *Employment) copy() *Employment {
 	return copied
 }
 
-func NewEmployment(userID int64, organizationID, clinicID, departmentID uuid.UUID, position *string, assignedAt time.Time) (*Employment, error) {
+func NewEmployment(userID, organizationID, clinicID, departmentID uuid.UUID, position *string, assignedAt time.Time) (*Employment, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
 		return nil, err
@@ -124,7 +126,7 @@ func NewEmployment(userID int64, organizationID, clinicID, departmentID uuid.UUI
 	return e, nil
 }
 
-func RestoreEmployment(id uuid.UUID, userID int64, organizationID, clinicID, departmentID uuid.UUID, position *string, assignedAt time.Time, deputy *EmploymentDeputy, vacation *EmploymentVacation) (*Employment, error) {
+func RestoreEmployment(id, userID, organizationID, clinicID, departmentID uuid.UUID, position *string, assignedAt time.Time, deputy *EmploymentDeputy, vacation *EmploymentVacation) (*Employment, error) {
 	var deputyCopy *EmploymentDeputy
 	if deputy != nil {
 		deputyCopy = deputy.copy()
@@ -164,7 +166,7 @@ func (e Employment) HasScheduledVacation() bool {
 	return e.Vacation != nil && e.Vacation.IsScheduled()
 }
 
-func (e *Employment) AssignDeputy(deputyID int64) error {
+func (e *Employment) AssignDeputy(deputyID uuid.UUID) error {
 	if deputyID == e.UserID {
 		return errs.NewInvalidEmploymentError(errs.EmploymentFieldDeputy, errs.ErrUserCannotBeOwnDeputy)
 	}
@@ -181,7 +183,6 @@ func (e *Employment) AssignDeputy(deputyID int64) error {
 
 	e.recordEvent(EmploymentDeputyAssignedEvent{
 		EmploymentID: e.ID,
-		UserID:       e.UserID,
 		DeputyID:     deputyID,
 	})
 
@@ -196,7 +197,6 @@ func (e *Employment) RemoveDeputy() {
 	e.Deputy = nil
 	e.recordEvent(EmploymentDeputyRemovedEvent{
 		EmploymentID: e.ID,
-		UserID:       e.UserID,
 	})
 }
 
@@ -248,7 +248,6 @@ func (e *Employment) scheduleVacation(now, startsAt time.Time, endsAt *time.Time
 	if e.HasScheduledVacation() {
 		e.recordEvent(EmploymentVacationScheduledEvent{
 			EmploymentID:     e.ID,
-			UserID:           e.UserID,
 			VacationStartsAt: e.Vacation.StartsAt,
 			VacationEndsAt:   e.Vacation.EndsAt,
 		})
@@ -257,7 +256,6 @@ func (e *Employment) scheduleVacation(now, startsAt time.Time, endsAt *time.Time
 
 	e.recordEvent(EmploymentVacationGrantedEvent{
 		EmploymentID:     e.ID,
-		UserID:           e.UserID,
 		VacationStartsAt: e.Vacation.StartsAt,
 		VacationEndsAt:   e.Vacation.EndsAt,
 	})
@@ -273,6 +271,5 @@ func (e *Employment) EndVacation() {
 	e.Vacation = nil
 	e.recordEvent(EmploymentVacationEndedEvent{
 		EmploymentID: e.ID,
-		UserID:       e.UserID,
 	})
 }

@@ -17,9 +17,12 @@ func ptr(s string) *string {
 	return &s
 }
 
-// Generate valid snowflake mock ID.
-// Snowflake timestamp component must be > 0.
-const validUserID = int64(1 << 23)
+// validUserID is a deterministic UUIDv7 used as a stable test fixture.
+// Version nibble = 7, variant nibble = 8 (RFC4122).
+var validUserID = uuid.MustParse("01010101-0101-7101-8101-010101010101")
+
+// validIdentityID is a representative opaque identity provider identifier.
+const validIdentityID = "zitadel|123456789"
 
 func TestUserName_Formatting(t *testing.T) {
 	t.Parallel()
@@ -157,10 +160,11 @@ func TestUser_CreationAndEvents(t *testing.T) {
 	un, _ := model.NewUserName("Test", "Testerov", nil)
 
 	// Should create a user and assign UserCreatedEvent
-	user, err := model.NewUser(validUserID, un)
+	user, err := model.NewUser(validUserID, validIdentityID, un)
 	require.NoError(t, err)
 	require.NotNil(t, user)
 	assert.Equal(t, validUserID, user.ID)
+	assert.Equal(t, validIdentityID, user.IdentityID)
 	assert.Equal(t, un, user.Name)
 	assert.Nil(t, user.CustomName)
 
@@ -169,26 +173,32 @@ func TestUser_CreationAndEvents(t *testing.T) {
 	createdEvent, ok := events[0].Payload.(model.UserCreatedEvent)
 	require.True(t, ok)
 	assert.Equal(t, validUserID, createdEvent.ID)
+	assert.Equal(t, validIdentityID, createdEvent.IdentityID)
 	assert.Equal(t, un, createdEvent.Name)
 
-	// Invalid ID validation check
-	_, err = model.NewUser(0, un)
+	// Invalid ID: nil UUID should fail validation
+	_, err = model.NewUser(uuid.Nil, validIdentityID, un)
 	var invalidUserErr *errors.InvalidUserError
 	require.True(t, stderrors.As(err, &invalidUserErr))
 	assert.Equal(t, errors.UserFieldID, invalidUserErr.Field)
-	var nonPositiveSnowflakeErr *errors.InvalidSnowflakeIDError
-	require.True(t, stderrors.As(err, &nonPositiveSnowflakeErr))
-	assert.Equal(t, errors.SnowflakeValidationReasonMustBePositive, nonPositiveSnowflakeErr.Reason)
-	assert.Equal(t, int64(0), nonPositiveSnowflakeErr.Details.ActualValue)
+	var invalidUUIDErr *errors.InvalidUUIDError
+	require.True(t, stderrors.As(err, &invalidUUIDErr))
+	assert.Equal(t, errors.UUIDValidationReasonRequired, invalidUUIDErr.Reason)
 
-	// Invalid snowflake without timestamp
-	_, err = model.NewUser(1<<20, un)
+	// Invalid ID: wrong UUID version (v4 instead of v7)
+	v4ID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	_, err = model.NewUser(v4ID, validIdentityID, un)
 	require.True(t, stderrors.As(err, &invalidUserErr))
 	assert.Equal(t, errors.UserFieldID, invalidUserErr.Field)
-	var invalidTimestampSnowflakeErr *errors.InvalidSnowflakeIDError
-	require.True(t, stderrors.As(err, &invalidTimestampSnowflakeErr))
-	assert.Equal(t, errors.SnowflakeValidationReasonInvalidTimestampPart, invalidTimestampSnowflakeErr.Reason)
-	assert.Equal(t, int64(0), invalidTimestampSnowflakeErr.Details.TimestampComponent)
+	require.True(t, stderrors.As(err, &invalidUUIDErr))
+	assert.Equal(t, errors.UUIDValidationReasonInvalidVersion, invalidUUIDErr.Reason)
+
+	// Invalid identityID: empty string
+	_, err = model.NewUser(validUserID, "", un)
+	require.True(t, stderrors.As(err, &invalidUserErr))
+	assert.Equal(t, errors.UserFieldIdentityID, invalidUserErr.Field)
+	var requiredErr *errors.ValueRequiredError
+	require.True(t, stderrors.As(err, &requiredErr))
 }
 
 func TestUser_Name_AvoidAliasing(t *testing.T) {
@@ -201,7 +211,7 @@ func TestUser_Name_AvoidAliasing(t *testing.T) {
 		MiddleName: &middleName,
 	}
 
-	user, err := model.NewUser(validUserID, name)
+	user, err := model.NewUser(validUserID, validIdentityID, name)
 	require.NoError(t, err)
 	require.NotNil(t, user.Name.MiddleName)
 	assert.Equal(t, "Ivanovich", *user.Name.MiddleName)
@@ -228,7 +238,7 @@ func TestUser_Name_AvoidAliasing(t *testing.T) {
 func TestUser_RemoveCustomName(t *testing.T) {
 	t.Parallel()
 	un, _ := model.NewUserName("Base", "Name", nil)
-	user, _ := model.NewUser(validUserID, un)
+	user, _ := model.NewUser(validUserID, validIdentityID, un)
 	user.PopEvents() // Clear initial event
 
 	// Idempotent if already nil
@@ -255,7 +265,7 @@ func TestUser_RemoveCustomName(t *testing.T) {
 func TestUser_OverrideName(t *testing.T) {
 	t.Parallel()
 	un, _ := model.NewUserName("Base", "Name", nil)
-	user, _ := model.NewUser(validUserID, un)
+	user, _ := model.NewUser(validUserID, validIdentityID, un)
 	customName, _ := model.NewUserName("Custom", "Name", nil)
 	user.PopEvents()
 
@@ -292,7 +302,7 @@ func TestUser_OverrideName(t *testing.T) {
 func TestUser_UpdateName(t *testing.T) {
 	t.Parallel()
 	un, _ := model.NewUserName("First", "Last", nil)
-	user, _ := model.NewUser(validUserID, un)
+	user, _ := model.NewUser(validUserID, validIdentityID, un)
 	newName, _ := model.NewUserName("NewFirst", "NewLast", nil)
 	user.PopEvents()
 
@@ -325,8 +335,12 @@ func TestUser_UpdateName(t *testing.T) {
 
 func TestUser_AdminStatus(t *testing.T) {
 	t.Parallel()
+
+	actorID := uuid.MustParse("02020202-0202-7202-8202-020202020202")
+	granterID := uuid.MustParse("03030303-0303-7303-8303-030303030303")
+
 	un, _ := model.NewUserName("Admin", "User", nil)
-	user, _ := model.NewUser(validUserID, un)
+	user, _ := model.NewUser(validUserID, validIdentityID, un)
 	user.PopEvents()
 
 	// Default is not admin
@@ -338,10 +352,10 @@ func TestUser_AdminStatus(t *testing.T) {
 
 	// Create an admin actor with sufficient tenure
 	actorUn, _ := model.NewUserName("Actor", "User", nil)
-	actor, _ := model.NewUser(int64(2<<23), actorUn)
+	actor, _ := model.NewUser(actorID, "zitadel|actor", actorUn)
 	actor.AdminRole = &model.AdminRole{
 		GrantedAt: oldAdminTime,
-		GrantedBy: int64(3 << 23),
+		GrantedBy: granterID,
 	}
 	actor.PopEvents()
 
@@ -396,11 +410,13 @@ func TestUser_AdminStatus(t *testing.T) {
 func TestUser_RevokeAdminRole_SelfRevokeForbidden(t *testing.T) {
 	t.Parallel()
 
+	granterID := uuid.MustParse("02020202-0202-7202-8202-020202020202")
+
 	adminName, _ := model.NewUserName("Admin", "User", nil)
-	admin, _ := model.NewUser(validUserID, adminName)
+	admin, _ := model.NewUser(validUserID, validIdentityID, adminName)
 	admin.AdminRole = &model.AdminRole{
 		GrantedAt: time.Now().UTC().Add(-model.AdminMinimumTenure - time.Hour),
-		GrantedBy: int64(2 << 23),
+		GrantedBy: granterID,
 	}
 	admin.PopEvents()
 
@@ -418,12 +434,12 @@ func TestRestoreUser_AdminRoleInvariant(t *testing.T) {
 
 	un, _ := model.NewUserName("Admin", "User", nil)
 	now := time.Now().UTC()
-	granterID := int64(3 << 23)
+	granterID := uuid.MustParse("03030303-0303-7303-8303-030303030303")
 
 	t.Run("NonAdminUserRestored", func(t *testing.T) {
 		t.Parallel()
 
-		user, err := model.RestoreUser(validUserID, un, nil, nil, nil)
+		user, err := model.RestoreUser(validUserID, validIdentityID, un, nil, nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, user)
 		assert.Nil(t, user.AdminRole)
@@ -436,7 +452,7 @@ func TestRestoreUser_AdminRoleInvariant(t *testing.T) {
 			GrantedAt: time.Time{},
 			GrantedBy: granterID,
 		}
-		_, err := model.RestoreUser(validUserID, un, nil, adminRole, nil)
+		_, err := model.RestoreUser(validUserID, validIdentityID, un, nil, adminRole, nil)
 		var invalidUserErr *errors.InvalidUserError
 		require.True(t, stderrors.As(err, &invalidUserErr))
 		assert.Equal(t, errors.UserFieldAdminRole, invalidUserErr.Field)
@@ -454,7 +470,7 @@ func TestRestoreUser_AdminRoleInvariant(t *testing.T) {
 			GrantedAt: now,
 			GrantedBy: granterID,
 		}
-		user, err := model.RestoreUser(validUserID, un, nil, adminRole, nil)
+		user, err := model.RestoreUser(validUserID, validIdentityID, un, nil, adminRole, nil)
 		require.NoError(t, err)
 		require.NotNil(t, user)
 		assert.NotNil(t, user.AdminRole)
@@ -466,8 +482,10 @@ func TestRestoreUser_AdminRoleInvariant(t *testing.T) {
 func TestUser_EmploymentAsEntity_MultipleEmployments(t *testing.T) {
 	t.Parallel()
 
+	deputyID := uuid.MustParse("04040404-0404-7404-8404-040404040404")
+
 	un, _ := model.NewUserName("Employee", "User", nil)
-	user, _ := model.NewUser(validUserID, un)
+	user, _ := model.NewUser(validUserID, validIdentityID, un)
 	user.PopEvents()
 
 	organizationID := uuid.MustParse("33333333-3333-7333-8333-333333333333")
@@ -517,7 +535,7 @@ func TestUser_EmploymentAsEntity_MultipleEmployments(t *testing.T) {
 	firstEmployment := user.Employments[0]
 	firstEmployment.PopEvents()
 
-	err = firstEmployment.AssignDeputy(int64(2 << 23))
+	err = firstEmployment.AssignDeputy(deputyID)
 	require.NoError(t, err)
 	assert.True(t, user.Employments[0].HasDeputy())
 
@@ -526,7 +544,7 @@ func TestUser_EmploymentAsEntity_MultipleEmployments(t *testing.T) {
 	deputyAssigned, ok := events[0].Payload.(model.EmploymentDeputyAssignedEvent)
 	require.True(t, ok)
 	assert.Equal(t, firstEmploymentID, deputyAssigned.EmploymentID)
-	assert.Equal(t, int64(2<<23), deputyAssigned.DeputyID)
+	assert.Equal(t, deputyID, deputyAssigned.DeputyID)
 
 	err = firstEmployment.AssignDeputy(validUserID)
 	var invalidEmploymentErr *errors.InvalidEmploymentError
@@ -574,7 +592,7 @@ func TestUser_AssignEmployment_SameOrganizationForbidden(t *testing.T) {
 	t.Parallel()
 
 	un, _ := model.NewUserName("Employee", "User", nil)
-	user, _ := model.NewUser(validUserID, un)
+	user, _ := model.NewUser(validUserID, validIdentityID, un)
 	user.PopEvents()
 
 	organizationID := uuid.MustParse("33333333-3333-7333-8333-333333333333")
@@ -598,7 +616,7 @@ func TestUser_AssignEmployment_ClonesPositionPointer(t *testing.T) {
 	t.Parallel()
 
 	un, _ := model.NewUserName("Employee", "User", nil)
-	user, _ := model.NewUser(validUserID, un)
+	user, _ := model.NewUser(validUserID, validIdentityID, un)
 	user.PopEvents()
 
 	organizationID := uuid.MustParse("33333333-3333-7333-8333-333333333333")
@@ -629,10 +647,11 @@ func TestUser_AssignEmployment_ClonesPositionPointer(t *testing.T) {
 func TestUser_CanManageAdminRole(t *testing.T) {
 	t.Parallel()
 
+	granterID := uuid.MustParse("04040404-0404-7404-8404-040404040404")
+
 	un, _ := model.NewUserName("Admin", "User", nil)
-	actor, _ := model.NewUser(validUserID, un)
+	actor, _ := model.NewUser(validUserID, validIdentityID, un)
 	now := time.Now().UTC()
-	granterID := int64(4 << 23)
 
 	t.Run("NotAdmin", func(t *testing.T) {
 		t.Parallel()
@@ -649,7 +668,7 @@ func TestUser_CanManageAdminRole(t *testing.T) {
 			GrantedAt: recentAdminSince,
 			GrantedBy: granterID,
 		}
-		admin, err := model.RestoreUser(validUserID, un, nil, adminRole, nil)
+		admin, err := model.RestoreUser(validUserID, validIdentityID, un, nil, adminRole, nil)
 		require.NoError(t, err)
 
 		err = admin.CanManageAdminRole()
@@ -664,7 +683,7 @@ func TestUser_CanManageAdminRole(t *testing.T) {
 			GrantedAt: oldAdminSince,
 			GrantedBy: granterID,
 		}
-		admin, err := model.RestoreUser(validUserID, un, nil, adminRole, nil)
+		admin, err := model.RestoreUser(validUserID, validIdentityID, un, nil, adminRole, nil)
 		require.NoError(t, err)
 
 		err = admin.CanManageAdminRole()
