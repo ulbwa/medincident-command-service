@@ -81,6 +81,25 @@ type Employment struct {
 
 const EmploymentVacationMaxScheduleAheadMonths = 6
 
+func (e *Employment) copy() *Employment {
+	copied := &Employment{
+		ID:             e.ID,
+		UserID:         e.UserID,
+		OrganizationID: e.OrganizationID,
+		ClinicID:       e.ClinicID,
+		DepartmentID:   e.DepartmentID,
+		Position:       utils.PtrClone(e.Position),
+		AssignedAt:     e.AssignedAt,
+	}
+	if e.Deputy != nil {
+		copied.Deputy = e.Deputy.copy()
+	}
+	if e.Vacation != nil {
+		copied.Vacation = e.Vacation.copy()
+	}
+	return copied
+}
+
 func NewEmployment(userID int64, organizationID, clinicID, departmentID uuid.UUID, position *string, assignedAt time.Time) (*Employment, error) {
 	id, err := uuid.NewV7()
 	if err != nil {

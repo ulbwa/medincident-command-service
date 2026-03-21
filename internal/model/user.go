@@ -109,7 +109,7 @@ func NewUser(id int64, name UserName) (*User, error) {
 	return u, nil
 }
 
-func RestoreUser(id int64, name UserName, customName *UserName, adminRole *AdminRole) (*User, error) {
+func RestoreUser(id int64, name UserName, customName *UserName, adminRole *AdminRole, employments []*Employment) (*User, error) {
 	nameCopy := *name.copy()
 
 	var customNameCopy *UserName
@@ -122,12 +122,19 @@ func RestoreUser(id int64, name UserName, customName *UserName, adminRole *Admin
 		adminRoleCopy = adminRole.copy()
 	}
 
+	employmentsCopy := make([]*Employment, len(employments))
+	for i, emp := range employments {
+		if emp != nil {
+			employmentsCopy[i] = emp.copy()
+		}
+	}
+
 	u := &User{
 		ID:          id,
 		Name:        nameCopy,
 		CustomName:  customNameCopy,
 		AdminRole:   adminRoleCopy,
-		Employments: make([]*Employment, 0),
+		Employments: employmentsCopy,
 	}
 	if err := validateUser(u); err != nil {
 		return nil, err

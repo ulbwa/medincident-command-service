@@ -423,7 +423,7 @@ func TestRestoreUser_AdminRoleInvariant(t *testing.T) {
 	t.Run("NonAdminUserRestored", func(t *testing.T) {
 		t.Parallel()
 
-		user, err := model.RestoreUser(validUserID, un, nil, nil)
+		user, err := model.RestoreUser(validUserID, un, nil, nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, user)
 		assert.Nil(t, user.AdminRole)
@@ -436,7 +436,7 @@ func TestRestoreUser_AdminRoleInvariant(t *testing.T) {
 			GrantedAt: time.Time{},
 			GrantedBy: granterID,
 		}
-		_, err := model.RestoreUser(validUserID, un, nil, adminRole)
+		_, err := model.RestoreUser(validUserID, un, nil, adminRole, nil)
 		var invalidUserErr *errors.InvalidUserError
 		require.True(t, stderrors.As(err, &invalidUserErr))
 		assert.Equal(t, errors.UserFieldAdminRole, invalidUserErr.Field)
@@ -454,7 +454,7 @@ func TestRestoreUser_AdminRoleInvariant(t *testing.T) {
 			GrantedAt: now,
 			GrantedBy: granterID,
 		}
-		user, err := model.RestoreUser(validUserID, un, nil, adminRole)
+		user, err := model.RestoreUser(validUserID, un, nil, adminRole, nil)
 		require.NoError(t, err)
 		require.NotNil(t, user)
 		assert.NotNil(t, user.AdminRole)
@@ -649,7 +649,7 @@ func TestUser_CanManageAdminRole(t *testing.T) {
 			GrantedAt: recentAdminSince,
 			GrantedBy: granterID,
 		}
-		admin, err := model.RestoreUser(validUserID, un, nil, adminRole)
+		admin, err := model.RestoreUser(validUserID, un, nil, adminRole, nil)
 		require.NoError(t, err)
 
 		err = admin.CanManageAdminRole()
@@ -664,7 +664,7 @@ func TestUser_CanManageAdminRole(t *testing.T) {
 			GrantedAt: oldAdminSince,
 			GrantedBy: granterID,
 		}
-		admin, err := model.RestoreUser(validUserID, un, nil, adminRole)
+		admin, err := model.RestoreUser(validUserID, un, nil, adminRole, nil)
 		require.NoError(t, err)
 
 		err = admin.CanManageAdminRole()
