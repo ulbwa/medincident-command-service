@@ -166,7 +166,7 @@ func TestUser_CreationAndEvents(t *testing.T) {
 
 	events := user.PopEvents()
 	require.Len(t, events, 1)
-	createdEvent, ok := events[0].(model.UserCreatedEvent)
+	createdEvent, ok := events[0].Payload.(model.UserCreatedEvent)
 	require.True(t, ok)
 	assert.Equal(t, validUserID, createdEvent.ID)
 	assert.Equal(t, un, createdEvent.Name)
@@ -247,7 +247,7 @@ func TestUser_RemoveCustomName(t *testing.T) {
 
 	events := user.PopEvents()
 	require.Len(t, events, 1)
-	customNameEvent, ok := events[0].(model.UserCustomNameUpdatedEvent)
+	customNameEvent, ok := events[0].Payload.(model.UserCustomNameUpdatedEvent)
 	require.True(t, ok)
 	assert.Nil(t, customNameEvent.CustomName)
 }
@@ -268,7 +268,7 @@ func TestUser_OverrideName(t *testing.T) {
 
 	events := user.PopEvents()
 	require.Len(t, events, 1)
-	assert.IsType(t, model.UserCustomNameUpdatedEvent{}, events[0])
+	assert.IsType(t, model.UserCustomNameUpdatedEvent{}, events[0].Payload)
 
 	// Verify idempotency (same name should skip update)
 	user.PopEvents()
@@ -302,7 +302,7 @@ func TestUser_UpdateName(t *testing.T) {
 
 	events := user.PopEvents()
 	require.Len(t, events, 1)
-	assert.IsType(t, model.UserNameUpdatedEvent{}, events[0])
+	assert.IsType(t, model.UserNameUpdatedEvent{}, events[0].Payload)
 
 	// Idempotency check
 	user.PopEvents()
@@ -355,7 +355,7 @@ func TestUser_AdminStatus(t *testing.T) {
 
 	events := user.PopEvents()
 	require.Len(t, events, 1)
-	grantEvent, ok := events[0].(model.UserGrantedAdminRoleEvent)
+	grantEvent, ok := events[0].Payload.(model.UserGrantedAdminRoleEvent)
 	require.True(t, ok)
 	assert.Equal(t, actor.ID, grantEvent.GrantedBy)
 
@@ -378,7 +378,7 @@ func TestUser_AdminStatus(t *testing.T) {
 
 	events = user.PopEvents()
 	require.Len(t, events, 1)
-	revokeEvent, ok := events[0].(model.UserRevokedAdminRoleEvent)
+	revokeEvent, ok := events[0].Payload.(model.UserRevokedAdminRoleEvent)
 	require.True(t, ok)
 	assert.False(t, revokeEvent.RevokedAt.IsZero())
 	assert.Equal(t, actor.ID, revokeEvent.RevokedBy)
@@ -499,14 +499,14 @@ func TestUser_EmploymentAsEntity_MultipleEmployments(t *testing.T) {
 
 	events := user.PopEvents()
 	require.Len(t, events, 2)
-	firstEmployed, ok := events[0].(model.UserEmployedEvent)
+	firstEmployed, ok := events[0].Payload.(model.UserEmployedEvent)
 	require.True(t, ok)
 	assert.Equal(t, firstEmploymentID, firstEmployed.EmploymentID)
 	assert.Equal(t, organizationID, firstEmployed.OrganizationID)
 	assert.Equal(t, clinicID, firstEmployed.ClinicID)
 	assert.Equal(t, departmentID, firstEmployed.DepartmentID)
 	assert.False(t, firstEmployed.AssignedAt.IsZero())
-	secondEmployed, ok := events[1].(model.UserEmployedEvent)
+	secondEmployed, ok := events[1].Payload.(model.UserEmployedEvent)
 	require.True(t, ok)
 	assert.Equal(t, secondEmploymentID, secondEmployed.EmploymentID)
 	assert.Equal(t, secondOrganizationID, secondEmployed.OrganizationID)
@@ -523,7 +523,7 @@ func TestUser_EmploymentAsEntity_MultipleEmployments(t *testing.T) {
 
 	events = firstEmployment.PopEvents()
 	require.Len(t, events, 1)
-	deputyAssigned, ok := events[0].(model.EmploymentDeputyAssignedEvent)
+	deputyAssigned, ok := events[0].Payload.(model.EmploymentDeputyAssignedEvent)
 	require.True(t, ok)
 	assert.Equal(t, firstEmploymentID, deputyAssigned.EmploymentID)
 	assert.Equal(t, int64(2<<23), deputyAssigned.DeputyID)
@@ -542,7 +542,7 @@ func TestUser_EmploymentAsEntity_MultipleEmployments(t *testing.T) {
 
 	events = firstEmployment.PopEvents()
 	require.Len(t, events, 1)
-	vacationScheduled, ok := events[0].(model.EmploymentVacationScheduledEvent)
+	vacationScheduled, ok := events[0].Payload.(model.EmploymentVacationScheduledEvent)
 	require.True(t, ok)
 	assert.Equal(t, firstEmploymentID, vacationScheduled.EmploymentID)
 
@@ -551,7 +551,7 @@ func TestUser_EmploymentAsEntity_MultipleEmployments(t *testing.T) {
 
 	events = firstEmployment.PopEvents()
 	require.Len(t, events, 1)
-	vacationEnded, ok := events[0].(model.EmploymentVacationEndedEvent)
+	vacationEnded, ok := events[0].Payload.(model.EmploymentVacationEndedEvent)
 	require.True(t, ok)
 	assert.Equal(t, firstEmploymentID, vacationEnded.EmploymentID)
 
@@ -565,7 +565,7 @@ func TestUser_EmploymentAsEntity_MultipleEmployments(t *testing.T) {
 
 	events = user.PopEvents()
 	require.Len(t, events, 1)
-	dismissed, ok := events[0].(model.UserDismissedEvent)
+	dismissed, ok := events[0].Payload.(model.UserDismissedEvent)
 	require.True(t, ok)
 	assert.Equal(t, firstEmploymentID, dismissed.EmploymentID)
 }
@@ -618,7 +618,7 @@ func TestUser_AssignEmployment_ClonesPositionPointer(t *testing.T) {
 
 	events := user.PopEvents()
 	require.Len(t, events, 1)
-	employed, ok := events[0].(model.UserEmployedEvent)
+	employed, ok := events[0].Payload.(model.UserEmployedEvent)
 	require.True(t, ok)
 	require.NotNil(t, employed.Position)
 	assert.Equal(t, "Doctor", *employed.Position)
