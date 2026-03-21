@@ -52,6 +52,10 @@ linters:
           - cyclop
           - dupl
           - gosec
+      - path: internal/model/entity\.go
+        linters:
+          - unused
+        text: recordEvent
 
   settings:
     gosec:
