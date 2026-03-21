@@ -10,7 +10,7 @@
         ],
         "deny": [
             "Bash(task migration-up:*)",
-            "Bash(task migration-down:*)",
+            "Bash(task migration-down:*)"
         ]
     }
 }
