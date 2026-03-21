@@ -60,6 +60,15 @@ func (d *OutboxDispatcher) Dispatch(ctx context.Context, tx persistence.Transact
 		}
 	}
 
+	// Notify the relay that new events are available. NOTIFY is transactional:
+	// PostgreSQL delivers it only when the surrounding transaction commits, so
+	// the relay will never wake up for events that were rolled back.
+	// Polling remains the relay's fallback for notifications that are missed
+	// (e.g. relay restart, network blip).
+	if _, err := sqlTx.ExecContext(ctx, "NOTIFY outbox_new_event"); err != nil {
+		return fmt.Errorf("notify outbox relay: %w", err)
+	}
+
 	return nil
 }
 
