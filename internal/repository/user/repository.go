@@ -55,7 +55,11 @@ func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.User
 
 	var rec entity.UserRecord
 
-	const userQuery = `SELECT * FROM users WHERE id = $1`
+	const userQuery = `
+SELECT id, identity_id, given_name, family_name, middle_name,
+       custom_given_name, custom_family_name, custom_middle_name,
+       admin_role_granted_at, admin_role_granted_by
+FROM users WHERE id = $1`
 	if err := db.GetContext(ctx, &rec, userQuery, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errs.ErrNotFound
@@ -66,7 +70,10 @@ func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.User
 
 	var empRecs []entity.EmploymentRecord
 
-	const empQuery = `SELECT * FROM employments WHERE user_id = $1 ORDER BY assigned_at`
+	const empQuery = `
+SELECT id, user_id, organization_id, clinic_id, department_id,
+       position, assigned_at, deputy_user_id, vacation_starts_at, vacation_ends_at
+FROM employments WHERE user_id = $1 ORDER BY assigned_at`
 	if err := db.SelectContext(ctx, &empRecs, empQuery, id); err != nil {
 		return nil, fmt.Errorf("query employments for user %s: %w", id, err)
 	}
