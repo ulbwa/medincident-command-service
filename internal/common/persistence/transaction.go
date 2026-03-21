@@ -29,7 +29,7 @@ func WithinTransaction(ctx context.Context, tx Transaction, fn func() error) (er
 	}()
 
 	if err = fn(); err != nil {
-		rollbackCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
 
 		rollbackErr := tx.Rollback(rollbackCtx)
